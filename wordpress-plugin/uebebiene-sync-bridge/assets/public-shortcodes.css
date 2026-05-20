@@ -1,0 +1,184 @@
+.uebebiene-public-info {
+  margin: 2rem 0;
+}
+
+.uebebiene-public-info__hero {
+  display: grid;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.uebebiene-public-info__copy,
+.uebebiene-public-info__qr,
+.uebebiene-public-info__stack article,
+.uebebiene-public-info__grid article,
+.uebebiene-public-info__faq details {
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+}
+
+.uebebiene-public-info__eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.uebebiene-public-info h2,
+.uebebiene-public-info h3 {
+  margin-top: 0;
+}
+
+.uebebiene-public-info__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.uebebiene-public-info__button,
+.uebebiene-public-info__button:visited {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1.1rem;
+  border-radius: 999px;
+  background: #f26f3d;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.uebebiene-public-info__button:hover,
+.uebebiene-public-info__button:focus {
+  color: #fff;
+}
+
+.uebebiene-public-info__button--dark,
+.uebebiene-public-info__button--dark:visited {
+  background: #1f2a36;
+}
+
+.uebebiene-public-info__button--green,
+.uebebiene-public-info__button--green:visited {
+  background: #506f59;
+}
+
+.uebebiene-public-info__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  font-weight: 600;
+}
+
+.uebebiene-public-info__steps,
+.uebebiene-public-info__timeline {
+  margin: 1rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.uebebiene-public-info__steps li,
+.uebebiene-public-info__timeline li {
+  margin-bottom: 0.8rem;
+}
+
+.uebebiene-public-info__qr {
+  text-align: center;
+}
+
+.uebebiene-public-info__qr img,`r`n.uebebiene-public-info__qr-code {
+  display: block;
+  width: min(280px, 100%);
+  height: auto;
+  margin: 0 auto 1rem;
+  background: #fff;
+  border-radius: 1rem;
+  padding: 0.75rem;
+}
+
+.uebebiene-public-info__qr-code > *,
+.uebebiene-public-info__qr-code img,
+.uebebiene-public-info__qr-code canvas,
+.uebebiene-public-info__qr-code svg {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}.uebebiene-public-info__qr code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+.uebebiene-public-info__sections {
+  display: grid;
+  gap: 2rem;
+}
+
+.uebebiene-public-info__grid,
+.uebebiene-public-info__stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.uebebiene-public-info__faq {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.uebebiene-public-info__faq summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.uebebiene-public-info__faq p {
+  margin-bottom: 0;
+}
+
+.uebebiene-public-info__timeline {
+  list-style: none;
+  padding-left: 0;
+}
+
+.uebebiene-public-info__timeline li {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.uebebiene-public-info__timeline li:last-child {
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+@media (min-width: 860px) {
+  .uebebiene-public-info__hero {
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+    align-items: start;
+  }
+
+  .uebebiene-public-info__grid {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+
+  .uebebiene-public-info__timeline li {
+    grid-template-columns: 7rem 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+}
+
+@media (min-width: 860px) {
+  .uebebiene-public-info--teacher .uebebiene-public-info__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+

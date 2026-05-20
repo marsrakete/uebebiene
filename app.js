@@ -1,6 +1,6 @@
-const STORAGE_KEY = "fleisstakt-state-v1";
-const APP_SHARE_URL = "https://marsrakete.github.io/fleisstakt/";
-const DEFAULT_SYNC_BASE_URL = "https://schwoabamunzee.marsrakete.de/wp-json/fleisstakt-sync/v1";
+const STORAGE_KEY = "uebebiene-state-v1";
+const APP_SHARE_URL = "https://marsrakete.github.io/uebebiene/";
+const DEFAULT_SYNC_BASE_URL = "https://schwoabamunzee.marsrakete.de/wp-json/uebebiene-sync/v1";
 const CURRENT_VERSION_INFO = Object.freeze(globalThis.APP_VERSION_INFO || {
   appVersion: "0.0.0",
   cacheVersion: "v0",
@@ -131,12 +131,22 @@ let ambientFlightTimeout = 0;
 let ambientFlightClearTimeout = 0;
 let ambientFlightBootstrapped = false;
 let ambientFlightInteractionBound = false;
+let ambientEasterEggHoldTimeout = 0;
+let ambientEasterEggBurstInterval = 0;
+let ambientEasterEggRestoreTimeout = 0;
+let ambientEasterEggActive = false;
+let ambientEasterEggTriggered = false;
+let ambientEasterEggGesture = null;
 let timerTickHandle = 0;
 let timerAudioContext = null;
 let timerAudioUnlocked = false;
 const AMBIENT_FLIGHT_FIRST_DELAY_RANGE = [45000, 85000];
 const AMBIENT_FLIGHT_DELAY_RANGE = [150000, 260000];
 const AMBIENT_FLIGHT_DURATION_RANGE = [540, 2000];
+const AMBIENT_EASTER_EGG_HOLD_MS = 10000;
+const AMBIENT_EASTER_EGG_DURATION_MS = 10000;
+const AMBIENT_EASTER_EGG_GESTURE_MAX_MS = 2200;
+const AMBIENT_EASTER_EGG_GESTURE_SEGMENT_PX = 36;
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
@@ -145,16 +155,32 @@ window.addEventListener("beforeinstallprompt", (event) => {
   render();
 });
 
+function scheduleCelebrationDismiss(durationMs = 2600) {
+  window.clearTimeout(celebrationTimeoutHandle);
+  if (durationMs <= 0) {
+    return;
+  }
+
+  celebrationTimeoutHandle = window.setTimeout(() => {
+    state.celebrate = false;
+    render();
+  }, durationMs);
+}
+
+function showCelebrationToast(message, options = {}) {
+  const { durationMs = 2600, renderNow = true } = options;
+  state.celebrationText = message;
+  state.celebrate = true;
+  scheduleCelebrationDismiss(durationMs);
+  if (renderNow) {
+    render();
+  }
+}
+
 window.addEventListener("appinstalled", () => {
   state.installPrompt = null;
   state.installReady = false;
-  state.celebrationText = "FleißTakt wurde installiert.";
-  state.celebrate = true;
-  render();
-  window.setTimeout(() => {
-    state.celebrate = false;
-    render();
-  }, 2200);
+  showCelebrationToast("ÜbeBiene wurde installiert.", { durationMs: 2200 });
 });
 
 const root = document.querySelector("#root");
@@ -193,7 +219,7 @@ function logQrScannerDebug(event, details = {}) {
   if (!state.cameraDebugEnabled) {
     return;
   }
-  console.log("[FleissTakt][QR]", event, details);
+  console.log("[Uebebiene][QR]", event, details);
   const noisyEvents = new Set(["tick-frame-ready"]);
   if (noisyEvents.has(event)) {
     return;
@@ -242,11 +268,60 @@ function launchIntroFlight(variant = "start") {
   }
   window.clearTimeout(introFlightTimeout);
   introFlight = createIntroFlight(variant);
-  render();
+  renderIntroFlightLayer();
   introFlightTimeout = window.setTimeout(() => {
     introFlight = null;
-    render();
+    renderIntroFlightLayer();
   }, introFlight.durationMs + introFlight.beeDelayMs + 260);
+}
+
+function ensureIntroFlightLayer() {
+  const container = document.querySelector(".app-frame");
+  if (!(container instanceof HTMLElement)) {
+    return null;
+  }
+
+  let layer = container.querySelector(".intro-flight-layer");
+  if (!(layer instanceof HTMLElement)) {
+    layer = document.createElement("div");
+    layer.className = "intro-flight-layer";
+    layer.setAttribute("aria-hidden", "true");
+    container.prepend(layer);
+  }
+
+  return layer;
+}
+
+function renderIntroFlightLayer() {
+  const layer = ensureIntroFlightLayer();
+  if (!(layer instanceof HTMLElement)) {
+    return;
+  }
+
+  layer.innerHTML = introFlight
+    ? `<div class="intro-flight ${introFlight.variant === "entry" ? "is-entry-flight" : ""}" style="
+          --intro-duration:${introFlight.durationMs}ms;
+          --intro-note-delay:${introFlight.noteDelayMs}ms;
+          --intro-bee-delay:${introFlight.beeDelayMs}ms;
+          --intro-start-x:${introFlight.startX};
+          --intro-start-y:${introFlight.startY};
+          --intro-mid-x:${introFlight.midX};
+          --intro-mid-y:${introFlight.midY};
+          --intro-end-x:${introFlight.endX};
+          --intro-end-y:${introFlight.endY};
+          --intro-loop-radius-x:${introFlight.loopRadiusX};
+          --intro-loop-radius-y:${introFlight.loopRadiusY};
+          --intro-note-rotate-start:${introFlight.noteRotateStart};
+          --intro-note-rotate-mid:${introFlight.noteRotateMid};
+          --intro-note-rotate-end:${introFlight.noteRotateEnd};
+          --intro-bee-rotate-start:${introFlight.beeRotateStart};
+          --intro-bee-rotate-mid:${introFlight.beeRotateMid};
+          --intro-bee-rotate-end:${introFlight.beeRotateEnd};
+        ">
+          <span class="intro-flight-note">🎵</span>
+          <span class="intro-flight-bee">🐝</span>
+        </div>`
+    : "";
 }
 
 function randomBetween(min, max) {
@@ -601,8 +676,7 @@ function syncTimerSessionState() {
     ),
     notifiedAt: "",
   };
-  state.celebrationText = "Geschafft. Dein Übe-Block ist fertig.";
-  state.celebrate = true;
+  showCelebrationToast("Geschafft. Dein Übe-Block ist fertig.", { durationMs: 2600, renderNow: false });
   persistState();
   vibrateTimerCompletion();
   playTimerCompletionTone();
@@ -613,6 +687,7 @@ function syncTimerSessionState() {
 
 function clearTimerCompletionToast() {
   if (state.celebrationText === "Geschafft. Dein Übe-Block ist fertig.") {
+    window.clearTimeout(celebrationTimeoutHandle);
     state.celebrate = false;
   }
 }
@@ -834,7 +909,7 @@ function createAmbientFlight() {
 }
 
 function createAmbientSwarm() {
-  const pairCount = Math.round(randomBetween(5, 10));
+  const pairCount = Math.round(randomBetween(4, 7));
   const flights = [];
 
   for (let index = 0; index < pairCount; index += 1) {
@@ -843,30 +918,104 @@ function createAmbientSwarm() {
       continue;
     }
 
-    const stagger = index * Math.round(randomBetween(45, 120));
+    const stagger = index * Math.round(randomBetween(180, 420));
     flights.push({
       ...flight,
       id: `${flight.id}-${index}`,
-      durationMs: Math.max(480, flight.durationMs + Math.round(randomBetween(-180, 220))),
+      durationMs: Math.round(randomBetween(2800, 5200)),
       noteDelayMs: flight.noteDelayMs + stagger,
-      beeDelayMs: flight.beeDelayMs + stagger + Math.round(randomBetween(12, 90)),
+      beeDelayMs: flight.beeDelayMs + stagger + Math.round(randomBetween(50, 180)),
     });
   }
 
   return flights;
 }
 
+function createAmbientEasterEggSwarm() {
+  return Array.from({ length: 8 }, (_, index) => {
+    const flight = createAmbientFlight();
+    if (!flight) {
+      return null;
+    }
+
+    const stagger = index * Math.round(randomBetween(220, 420));
+    return {
+      ...flight,
+      id: `${flight.id}-swarm-${index}`,
+      durationMs: Math.round(randomBetween(7600, 9600)),
+      noteDelayMs: flight.noteDelayMs + stagger,
+      beeDelayMs: flight.beeDelayMs + stagger + Math.round(randomBetween(60, 180)),
+      loopRadiusX: `${Math.round(randomBetween(24, 64))}px`,
+      loopRadiusY: `${Math.round(randomBetween(20, 52))}px`,
+    };
+  }).filter(Boolean);
+}
+
+function clearAmbientEasterEggHold() {
+  window.clearTimeout(ambientEasterEggHoldTimeout);
+  ambientEasterEggHoldTimeout = 0;
+}
+
+function stopAmbientEasterEgg(resumeAmbient = true) {
+  clearAmbientEasterEggHold();
+  window.clearInterval(ambientEasterEggBurstInterval);
+  window.clearTimeout(ambientEasterEggRestoreTimeout);
+  ambientEasterEggBurstInterval = 0;
+  ambientEasterEggRestoreTimeout = 0;
+  ambientEasterEggActive = false;
+  dismissAmbientFlight(false);
+  if (resumeAmbient && !prefersReducedMotion()) {
+    scheduleAmbientFlight();
+  }
+}
+
+function launchAmbientEasterEggBurst() {
+  const nextFlight = createAmbientEasterEggSwarm();
+  if (!nextFlight.length) {
+    return;
+  }
+
+  window.clearTimeout(ambientFlightClearTimeout);
+  ambientFlight = nextFlight;
+  renderAmbientFlightLayer();
+  const totalDuration = Math.max(...nextFlight.map((flight) => flight.durationMs + flight.beeDelayMs)) + 420;
+  ambientFlightClearTimeout = window.setTimeout(() => {
+    if (ambientEasterEggActive) {
+      ambientFlight = [];
+      renderAmbientFlightLayer();
+      return;
+    }
+    dismissAmbientFlight();
+  }, totalDuration);
+}
+
+function startAmbientEasterEgg() {
+  if (ambientEasterEggActive || prefersReducedMotion()) {
+    return;
+  }
+
+  ambientEasterEggActive = true;
+  window.clearTimeout(ambientFlightTimeout);
+  window.clearTimeout(ambientFlightClearTimeout);
+  window.clearInterval(ambientEasterEggBurstInterval);
+  window.clearTimeout(ambientEasterEggRestoreTimeout);
+  launchAmbientEasterEggBurst();
+  ambientEasterEggRestoreTimeout = window.setTimeout(() => {
+    stopAmbientEasterEgg(true);
+  }, AMBIENT_EASTER_EGG_DURATION_MS);
+}
+
 function dismissAmbientFlight(shouldReschedule = true) {
   window.clearTimeout(ambientFlightClearTimeout);
   ambientFlight = [];
-  render();
-  if (shouldReschedule) {
+  renderAmbientFlightLayer();
+  if (shouldReschedule && !ambientEasterEggActive) {
     scheduleAmbientFlight();
   }
 }
 
 function scheduleAmbientFlight(useFirstDelay = false) {
-  if (prefersReducedMotion()) {
+  if (ambientEasterEggActive || prefersReducedMotion()) {
     return;
   }
 
@@ -878,7 +1027,7 @@ function scheduleAmbientFlight(useFirstDelay = false) {
 }
 
 function launchAmbientFlight(force = false) {
-  if (prefersReducedMotion()) {
+  if (ambientEasterEggActive || prefersReducedMotion()) {
     return;
   }
 
@@ -896,7 +1045,7 @@ function launchAmbientFlight(force = false) {
   window.clearTimeout(ambientFlightTimeout);
   window.clearTimeout(ambientFlightClearTimeout);
   ambientFlight = nextFlight;
-  render();
+  renderAmbientFlightLayer();
   const totalDuration = Math.max(...nextFlight.map((flight) => flight.durationMs + flight.beeDelayMs)) + 720;
   ambientFlightClearTimeout = window.setTimeout(() => {
     dismissAmbientFlight();
@@ -948,6 +1097,77 @@ function bootstrapAmbientFlight() {
       scheduleAmbientFlight();
     }
   });
+}
+
+function ensureAmbientFlightLayer() {
+  const container = document.querySelector(".app-frame");
+  if (!(container instanceof HTMLElement)) {
+    return null;
+  }
+
+  let layer = container.querySelector(".ambient-flight-layer");
+  if (!(layer instanceof HTMLElement)) {
+    layer = document.createElement("div");
+    layer.className = "ambient-flight-layer";
+    layer.setAttribute("aria-hidden", "true");
+    container.prepend(layer);
+  }
+
+  return layer;
+}
+
+function renderAppShareQr() {
+  const mount = document.querySelector("#app-share-qr-mount");
+  if (!(mount instanceof HTMLElement)) {
+    return;
+  }
+
+  mount.innerHTML = "";
+  if (typeof QRCode !== "function") {
+    return;
+  }
+
+  new QRCode(mount, {
+    text: APP_SHARE_URL,
+    width: 112,
+    height: 112,
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+}
+function renderAmbientFlightLayer() {
+  const layer = ensureAmbientFlightLayer();
+  if (!(layer instanceof HTMLElement)) {
+    return;
+  }
+
+  layer.innerHTML = ambientFlight.length
+    ? ambientFlight.map((flight) => `<div class="ambient-flight ${flight.stick ? "is-sticky" : ""}" style="
+          --ambient-duration:${flight.durationMs}ms;
+          --ambient-note-delay:${flight.noteDelayMs}ms;
+          --ambient-bee-delay:${flight.beeDelayMs}ms;
+          --ambient-start-x:${flight.startX};
+          --ambient-start-y:${flight.startY};
+          --ambient-mid-x:${flight.midX};
+          --ambient-mid-y:${flight.midY};
+          --ambient-stick-x:${flight.stickX};
+          --ambient-stick-y:${flight.stickY};
+          --ambient-end-x:${flight.endX};
+          --ambient-end-y:${flight.endY};
+          --ambient-note-rotate-start:${flight.noteRotateStart};
+          --ambient-note-rotate-mid:${flight.noteRotateMid};
+          --ambient-note-rotate-end:${flight.noteRotateEnd};
+          --ambient-bee-rotate-start:${flight.beeRotateStart};
+          --ambient-bee-rotate-mid:${flight.beeRotateMid};
+          --ambient-bee-rotate-end:${flight.beeRotateEnd};
+          --ambient-repel-x:${flight.repelX};
+          --ambient-repel-y:${flight.repelY};
+          --ambient-loop-radius-x:${flight.loopRadiusX};
+          --ambient-loop-radius-y:${flight.loopRadiusY};
+        ">
+          <span class="ambient-flight-note">🎵</span>
+          <span class="ambient-flight-bee">🐝</span>
+        </div>`).join("")
+    : "";
 }
 
 function applyModalScrollLock() {
@@ -1050,7 +1270,7 @@ function getScannerStartErrorMessage(error) {
   const message = `${error?.message || ""}`.trim();
 
   if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
-    return "Kein Kamerazugriff. Bitte Kamera im Browser oder auf dem Gerät für FleißTakt erlauben.";
+    return "Kein Kamerazugriff. Bitte Kamera im Browser oder auf dem Gerät für ÜbeBiene erlauben.";
   }
 
   if (name === "NotFoundError" || name === "DevicesNotFoundError") {
@@ -1407,6 +1627,10 @@ function escapeHtml(text) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function formatShareUrlHtml(url) {
+  return escapeHtml(url).replaceAll("/", "/<wbr>");
 }
 
 function formatDateKey(date) {
@@ -1802,7 +2026,7 @@ function exportBackupPayload() {
   syncCurrentStateIntoProfileLibrary();
   const payload = {
     exportedAt: new Date().toISOString(),
-    app: "FleißTakt",
+    app: "ÜbeBiene",
     version: state.versionInfo.appVersion,
     data: {
       entries: state.entries,
@@ -1840,7 +2064,7 @@ function exportBackupPayload() {
 }
 
 function createBackupFileName() {
-  return `fleisstakt-backup-${createDateStamp()}.json`;
+  return `uebebiene-backup-${createDateStamp()}.json`;
 }
 
 function createBackupFileContent() {
@@ -1934,8 +2158,8 @@ async function shareDeviceMoveBackup() {
   }
 
   await navigator.share({
-    title: "FleißTakt Gerätewechsel",
-    text: "Diese Datei auf dem neuen Gerät in FleißTakt importieren, damit Lernenden-ID und Verlauf erhalten bleiben.",
+    title: "ÜbeBiene Gerätewechsel",
+    text: "Diese Datei auf dem neuen Gerät in ÜbeBiene importieren, damit Lernenden-ID und Verlauf erhalten bleiben.",
     files: [file],
   });
 }
@@ -1958,7 +2182,7 @@ function parseCardPackage(text) {
       }
     : null;
 
-  if (!payload || payload.kind !== "fleisstakt-kartenpaket") {
+  if (!payload || payload.kind !== "uebebiene-kartenpaket") {
     throw new Error("ungueltiges-kartenpaket");
   }
 
@@ -2018,7 +2242,7 @@ function parseProfilePackage(text) {
       }
     : null;
 
-  if (!payload || payload.kind !== "fleisstakt-profile-paket") {
+  if (!payload || payload.kind !== "uebebiene-profil-paket") {
     throw new Error("ungueltiges-profilpaket");
   }
 
@@ -2117,7 +2341,7 @@ async function uploadCurrentReportPackage() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-FleissTakt-Upload-Token": state.syncUploadToken,
+      "X-Uebebiene-Upload-Token": state.syncUploadToken,
     },
     body: JSON.stringify(payload),
   });
@@ -2160,7 +2384,7 @@ async function fetchStudentSyncSnapshot() {
   const response = await fetch(`${state.syncBaseUrl}/student-sync`, {
     method: "GET",
     headers: {
-      "X-FleissTakt-Upload-Token": state.syncUploadToken,
+      "X-Uebebiene-Upload-Token": state.syncUploadToken,
     },
   });
   const data = await response.json().catch(() => ({}));
@@ -2180,7 +2404,7 @@ async function saveBackupToServer() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-FleissTakt-Upload-Token": state.syncUploadToken,
+      "X-Uebebiene-Upload-Token": state.syncUploadToken,
     },
     body: JSON.stringify(payload),
   });
@@ -2199,7 +2423,7 @@ async function restoreLatestBackupFromServer() {
   const response = await fetch(`${state.syncBaseUrl}/student-backup/latest`, {
     method: "GET",
     headers: {
-      "X-FleissTakt-Upload-Token": state.syncUploadToken,
+      "X-Uebebiene-Upload-Token": state.syncUploadToken,
     },
   });
   const data = await response.json().catch(() => ({}));
@@ -2729,7 +2953,7 @@ async function connectProfileFlow(studentId, connectCode) {
   ]);
 
   try {
-    updateSyncStatus("connect", "running", "Verbindung zum FleißTakt-Server wird aufgebaut...");
+    updateSyncStatus("connect", "running", "Verbindung zum ÜbeBiene-Server wird aufgebaut...");
     const snapshot = await connectProfileWithServer(studentId, connectCode);
     updateSyncStatus("connect", "done", "Profil wurde gefunden. Daten werden jetzt übernommen...");
 
@@ -2781,7 +3005,7 @@ function exportReportPackagePayload() {
   const report = getReportData(state.reportRange);
   const reportUuid = `report-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const payload = {
-    kind: "fleisstakt-berichtspaket",
+    kind: "uebebiene-berichtspaket",
     reportUuid,
     exportedAt: new Date().toISOString(),
     appVersion: state.versionInfo.appVersion,
@@ -2816,7 +3040,7 @@ function exportReportPackagePayload() {
 
 function createReportPackageFileName() {
   const safeName = state.profileName.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "") || "lernende";
-  return `fleisstakt-berichtspaket-${safeName}-${createDateStamp()}.json`;
+  return `uebebiene-berichtspaket-${safeName}-${createDateStamp()}.json`;
 }
 
 function getTodayKey() {
@@ -3974,66 +4198,14 @@ function render() {
   root.innerHTML = `
     <div class="app-shell">
       <div class="app-frame ${state.celebrate ? "is-celebrating" : ""} ${(state.settingsOpen || state.helpOpen || state.profileImportConfirmOpen || state.resetConfirmOpen || state.resetFinalConfirmOpen || state.scannerOpen || state.syncStatusOpen) ? "is-modal-open" : ""}">
-        ${
-          introFlight
-            ? `<div class="intro-flight ${introFlight.variant === "entry" ? "is-entry-flight" : ""}" aria-hidden="true" style="
-                --intro-duration:${introFlight.durationMs}ms;
-                --intro-note-delay:${introFlight.noteDelayMs}ms;
-                --intro-bee-delay:${introFlight.beeDelayMs}ms;
-                --intro-start-x:${introFlight.startX};
-                --intro-start-y:${introFlight.startY};
-                --intro-mid-x:${introFlight.midX};
-                --intro-mid-y:${introFlight.midY};
-                --intro-end-x:${introFlight.endX};
-                --intro-end-y:${introFlight.endY};
-                --intro-loop-radius-x:${introFlight.loopRadiusX};
-                --intro-loop-radius-y:${introFlight.loopRadiusY};
-                --intro-note-rotate-start:${introFlight.noteRotateStart};
-                --intro-note-rotate-mid:${introFlight.noteRotateMid};
-                --intro-note-rotate-end:${introFlight.noteRotateEnd};
-                --intro-bee-rotate-start:${introFlight.beeRotateStart};
-                --intro-bee-rotate-mid:${introFlight.beeRotateMid};
-                --intro-bee-rotate-end:${introFlight.beeRotateEnd};
-              ">
-                <span class="intro-flight-note">🎵</span>
-                <span class="intro-flight-bee">🐝</span>
-              </div>`
-            : ""
-        }
-        ${ambientFlight.length
-          ? ambientFlight.map((flight) => `<div class="ambient-flight ${flight.stick ? "is-sticky" : ""}" aria-hidden="true" style="
-                --ambient-duration:${flight.durationMs}ms;
-                --ambient-note-delay:${flight.noteDelayMs}ms;
-                --ambient-bee-delay:${flight.beeDelayMs}ms;
-                --ambient-start-x:${flight.startX};
-                --ambient-start-y:${flight.startY};
-                --ambient-mid-x:${flight.midX};
-                --ambient-mid-y:${flight.midY};
-                --ambient-stick-x:${flight.stickX};
-                --ambient-stick-y:${flight.stickY};
-                --ambient-end-x:${flight.endX};
-                --ambient-end-y:${flight.endY};
-                --ambient-note-rotate-start:${flight.noteRotateStart};
-                --ambient-note-rotate-mid:${flight.noteRotateMid};
-                --ambient-note-rotate-end:${flight.noteRotateEnd};
-                --ambient-bee-rotate-start:${flight.beeRotateStart};
-                --ambient-bee-rotate-mid:${flight.beeRotateMid};
-                --ambient-bee-rotate-end:${flight.beeRotateEnd};
-                --ambient-repel-x:${flight.repelX};
-                --ambient-repel-y:${flight.repelY};
-                --ambient-loop-radius-x:${flight.loopRadiusX};
-                --ambient-loop-radius-y:${flight.loopRadiusY};
-              ">
-                <span class="ambient-flight-note">🎵</span>
-                <span class="ambient-flight-bee">🐝</span>
-              </div>`).join("")
-          : ""}
+
+
         <header class="topbar">
           <div class="topbar-brand">
-            <img class="topbar-brand-icon" src="./icons/icon-192.png" alt="FleißTakt Icon" />
+            <img class="topbar-brand-icon" src="./icons/icon-192.png" alt="ÜbeBiene Icon" />
             <div>
             <p class="eyebrow">Üben sichtbar machen</p>
-            <h1>FleißTakt</h1>
+            <h1 id="brand-easter-egg-target">ÜbeBiene</h1>
             </div>
           </div>
           <div class="topbar-actions">
@@ -4083,7 +4255,7 @@ function render() {
 
           <section class="settings-block">
             <h3>App</h3>
-            <p class="settings-copy">Version ${escapeHtml(state.versionInfo.appVersion)} · ${escapeHtml(state.versionInfo.label || "FleißTakt")}</p>
+            <p class="settings-copy">Version ${escapeHtml(state.versionInfo.appVersion)} · ${escapeHtml(state.versionInfo.label || "ÜbeBiene")}</p>
             <div class="settings-actions">
               <button class="secondary-action" type="button" id="settings-install-app">
                 ${state.installReady ? "App installieren" : "Installation prüfen"}
@@ -4194,19 +4366,19 @@ function render() {
 
           <section class="settings-block">
             <h3>Weiterempfehlen</h3>
-            <p class="settings-copy">Teile den Link zu FleißTakt direkt aus der App.</p>
+            <p class="settings-copy">Teile den Link zu ÜbeBiene direkt aus der App.</p>
             <div class="settings-actions">
               <button class="secondary-action" type="button" id="share-app-button">App empfehlen</button>
             </div>
             <div class="share-card">
               <img
                 class="share-qr-image"
-                src="./icons/fleisstakt-share-qr.svg"
-                alt="QR-Code zu FleißTakt"
+                src="./icons/uebebiene-share-qr.svg"
+                alt="QR-Code zu ÜbeBiene"
               />
               <div class="share-card-copy">
                 <p class="settings-copy">Oder mit dem Smartphone scannen:</p>
-                <code class="share-url">${APP_SHARE_URL}</code>
+                <code class="share-url">${formatShareUrlHtml(APP_SHARE_URL)}</code>
               </div>
             </div>
           </section>
@@ -4214,7 +4386,7 @@ function render() {
           <section class="settings-block">
             <h3>Updates</h3>
             <p class="settings-copy" id="version-label">Version ${escapeHtml(state.versionInfo.appVersion)} · Cache ${escapeHtml(state.versionInfo.cacheVersion)}</p>
-            <p class="settings-copy">FleißTakt läuft auch offline weiter. Für eine Update-Prüfung braucht das Gerät nur kurz eine Internet-Verbindung.</p>
+            <p class="settings-copy">ÜbeBiene läuft auch offline weiter. Für eine Update-Prüfung braucht das Gerät nur kurz eine Internet-Verbindung.</p>
             <p class="settings-status" data-state="${state.updateState}">${escapeHtml(state.updateStatus)}</p>
             <div class="settings-actions">
               <button class="secondary-action" type="button" id="check-updates-button">Nach Updates suchen</button>
@@ -4241,7 +4413,7 @@ function render() {
           <form method="dialog" class="settings-sheet" tabindex="-1">
           <div class="section-head">
             <h2>Schneller Einstieg</h2>
-            <p>So klappt der Start mit FleißTakt in wenigen Schritten.</p>
+            <p>So klappt der Start mit ÜbeBiene in wenigen Schritten.</p>
           </div>
 
           <section class="settings-block">
@@ -4438,9 +4610,63 @@ function render() {
     `;
 
   bindEvents();
+  renderIntroFlightLayer();
+  renderAmbientFlightLayer();
 }
 
 function bindEvents() {
+  const brandEasterEggTarget = document.querySelector("#brand-easter-egg-target");
+  if (brandEasterEggTarget) {
+    const cancelTriggers = () => {
+      clearAmbientEasterEggHold();
+      resetAmbientEasterEggGesture();
+      ambientEasterEggTriggered = false;
+    };
+
+    const startHold = (event) => {
+      if (ambientEasterEggActive || ambientEasterEggTriggered) {
+        return;
+      }
+
+      if (event.pointerType === "touch" || event.pointerType === "pen") {
+        beginAmbientEasterEggGesture(event.pointerId, event.clientX);
+        return;
+      }
+
+      if (event.button !== 0) {
+        return;
+      }
+
+      clearAmbientEasterEggHold();
+      ambientEasterEggHoldTimeout = window.setTimeout(() => {
+        ambientEasterEggTriggered = true;
+        startAmbientEasterEgg();
+      }, AMBIENT_EASTER_EGG_HOLD_MS);
+    };
+
+    const trackGesture = (event) => {
+      if (ambientEasterEggActive || ambientEasterEggTriggered) {
+        return;
+      }
+
+      if (event.pointerType !== "touch" && event.pointerType !== "pen") {
+        return;
+      }
+
+      if (updateAmbientEasterEggGesture(event.pointerId, event.clientX)) {
+        ambientEasterEggTriggered = true;
+        clearAmbientEasterEggHold();
+        startAmbientEasterEgg();
+      }
+    };
+
+    brandEasterEggTarget.addEventListener("pointerdown", startHold);
+    brandEasterEggTarget.addEventListener("pointermove", trackGesture);
+    brandEasterEggTarget.addEventListener("pointerup", cancelTriggers);
+    brandEasterEggTarget.addEventListener("pointercancel", cancelTriggers);
+    brandEasterEggTarget.addEventListener("pointerleave", cancelTriggers);
+  }
+
   const settingsDialog = document.querySelector("#settings-dialog");
   if (settingsDialog) {
     if (state.settingsOpen && !settingsDialog.open) {
@@ -5139,8 +5365,8 @@ function bindEvents() {
   if (shareAppButton) {
     shareAppButton.addEventListener("click", async () => {
       const payload = {
-        title: "FleißTakt",
-    text: "FleißTakt hilft Musiklernenden dabei, Übezeit festzuhalten und Kärtchen zu sammeln.",
+        title: "ÜbeBiene",
+    text: "ÜbeBiene hilft Musiklernenden dabei, Übezeit festzuhalten und Kärtchen zu sammeln.",
         url: APP_SHARE_URL,
       };
 
@@ -5209,9 +5435,7 @@ function bindEvents() {
       document.querySelector("#settings-dialog")?.close();
       applyModalScrollLock();
       startTimerSession(state.timerMinutes, { durationMs: TIMER_TEST_DURATION_MS });
-      state.celebrationText = "Testmodus gestartet. Der Timer läuft jetzt 10 Sekunden.";
-      state.celebrate = true;
-      render();
+      showCelebrationToast("Testmodus gestartet. Der Timer läuft jetzt 10 Sekunden.", { durationMs: 2200 });
     });
   }
 
@@ -5377,7 +5601,7 @@ function bindEvents() {
     ]);
 
     try {
-      updateSyncStatus("upload", "running", "Bericht wird an den FleißTakt-Server gesendet...");
+      updateSyncStatus("upload", "running", "Bericht wird an den ÜbeBiene-Server gesendet...");
       const { uploadResult, snapshot } = await syncStudentAppWithServer();
       updateSyncStatus("upload", "done", "Bericht gespeichert. Jetzt werden Profil und Kärtchen geladen...");
       updateSyncStatus("download", "running", "Aktueller Serverstand wird auf das Gerät übernommen...");
@@ -5442,7 +5666,7 @@ function bindEvents() {
         if (navigator.share) {
           const reportLabel = getReportActionLabel();
           await navigator.share({
-            title: `FleißTakt ${reportLabel}`,
+            title: `ÜbeBiene ${reportLabel}`,
             text: summary,
           });
           state.celebrationText = `${reportLabel} geteilt.`;
@@ -5490,7 +5714,7 @@ function bindEvents() {
   const mailSummaryButton = document.querySelector("#mail-summary");
   if (mailSummaryButton) {
     mailSummaryButton.addEventListener("click", () => {
-      const subject = encodeURIComponent(`FleißTakt ${getReportActionLabel()} für ${state.profileName}`);
+      const subject = encodeURIComponent(`ÜbeBiene ${getReportActionLabel()} für ${state.profileName}`);
       const body = encodeURIComponent(composeWeeklySummary());
       window.location.href = `mailto:?subject=${subject}&body=${body}`;
     });
@@ -5630,7 +5854,7 @@ function composeWeeklySummary() {
     .join("\n");
 
   return [
-    `FleißTakt ${report.label} für ${state.profileName}`,
+    `ÜbeBiene ${report.label} für ${state.profileName}`,
     ``,
     `${report.label}: ${report.minutes} Minuten`,
     `Tagesziel: ${state.goal} Minuten`,
@@ -5649,7 +5873,7 @@ function composeShortSummary() {
   const unlocked = report.unlockedCards.length;
 
   return [
-    `FleißTakt: ${state.profileName}`,
+    `ÜbeBiene: ${state.profileName}`,
     `${report.minutes} Minuten im Zeitraum ${report.label}`,
     `${report.stats.streak} Tage Serie`,
     `${unlocked} Kärtchen freigeschaltet`,
@@ -5666,7 +5890,7 @@ function formatDisplayDate(dateKey) {
 
 function createReportFileName(extension) {
   const safeName = state.profileName.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "") || "lernende";
-  return `fleisstakt-${getReportSlug()}-${safeName}-${createDateStamp()}.${extension}`;
+  return `uebebiene-${getReportSlug()}-${safeName}-${createDateStamp()}.${extension}`;
 }
 
 function getReportSlug() {
@@ -5742,7 +5966,7 @@ function composeHtmlReport({ printOnLoad = false } = {}) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FleißTakt ${escapeHtml(model.report.label)}</title>
+    <title>ÜbeBiene ${escapeHtml(model.report.label)}</title>
     <style>
       :root {
         color-scheme: light;
@@ -5880,7 +6104,7 @@ function composeHtmlReport({ printOnLoad = false } = {}) {
   </head>
   <body>
     <article class="report">
-      <p class="eyebrow">FleißTakt ${escapeHtml(model.report.label)}</p>
+      <p class="eyebrow">ÜbeBiene ${escapeHtml(model.report.label)}</p>
       <h1>${escapeHtml(model.profileName)}</h1>
       <p class="lead">Hauptinstrument: ${escapeHtml(model.instrument)} · Tagesziel: ${model.goal} Minuten</p>
 
@@ -5959,3 +6183,33 @@ render();
 window.requestAnimationFrame(() => {
   launchIntroFlight();
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

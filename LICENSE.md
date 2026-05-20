@@ -162,10 +162,10 @@ accepting any such warranty or additional liability.
 
 END OF TERMS AND CONDITIONS
 
-Copyright 2026 Marsrakete / FleißTakt
+Copyright 2026 Marsrakete / ÜbeBiene
 
 Dieses Projekt steht unter der Apache License 2.0.
 
 Siehe dazu auch:
 
-- [THIRD-PARTY-NOTICES.md](C:/Users/millenseer/OneDrive%20-%20conet.de/Projekte/FleissTakt/THIRD-PARTY-NOTICES.md)
+- [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)

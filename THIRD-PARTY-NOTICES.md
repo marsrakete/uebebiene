@@ -10,4 +10,4 @@
 
 Hinweis:
 
-`jsQR` wird in FleißTakt als Drittbibliothek verwendet. Für `jsQR` gelten die Bedingungen der Apache-2.0-Lizenz des Originalprojekts.
+`jsQR` wird in ÜbeBiene als Drittbibliothek verwendet. Für `jsQR` gelten die Bedingungen der Apache-2.0-Lizenz des Originalprojekts.

@@ -1,11 +1,11 @@
-# FleißTakt Pilot-Checkliste
+# ÜbeBiene Pilot-Checkliste
 
 Diese Checkliste ist für die erste echte Testphase gedacht.
 Ziel ist nicht mehr, neue große Funktionen zu bauen, sondern das bestehende Produkt im Alltag sicher und verständlich zu erproben.
 
 ## Ziel des Piloten
 
-- Prüfen, ob Lehrkräfte und Lernende FleißTakt ohne enge Begleitung benutzen können
+- Prüfen, ob Lehrkräfte und Lernende ÜbeBiene ohne enge Begleitung benutzen können
 - Prüfen, ob Kopplung, Synchronisation, Kärtchen und Berichte im Alltag stabil funktionieren
 - Letzte fachliche, technische und sprachliche Stolperstellen vor einem breiteren Einsatz finden
 

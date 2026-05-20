@@ -7,7 +7,7 @@ $listener = [System.Net.HttpListener]::new()
 $listener.Prefixes.Add("http://localhost:$Port/")
 $listener.Start()
 
-Write-Host "FleißTakt laeuft auf http://localhost:$Port/"
+Write-Host "ÜbeBiene laeuft auf http://localhost:$Port/"
 Write-Host "Zum Beenden Strg+C druecken."
 
 $contentTypes = @{

@@ -1,15 +1,15 @@
-# FleißTakt
+# ÜbeBiene
 
-<img src="./icons/logo-readme.png" alt="FleißTakt Logo" width="240" />
+<img src="./icons/logo-readme.png" alt="ÜbeBiene Logo" width="240" />
 
-FleißTakt ist eine einfache Übe-Begleitung für Musiklernende. Die App hilft dabei, tägliches Üben sichtbar zu machen und mit kleinen Erfolgsmomenten zu verbinden. Dazu kommen eine eigene Lehrkräfte-App und ein WordPress-Plugin als gemeinsame Zentrale.
+ÜbeBiene ist eine einfache Übe-Begleitung für Musiklernende. Die App hilft dabei, tägliches Üben sichtbar zu machen und mit kleinen Erfolgsmomenten zu verbinden. Dazu kommen eine eigene Lehrkräfte-App und ein WordPress-Plugin als gemeinsame Zentrale.
 
 ## Projektinfos
 
-- App für Lernende: [https://marsrakete.github.io/fleisstakt/](https://marsrakete.github.io/fleisstakt/)
-- Lehrkräfte-App: [https://marsrakete.github.io/fleisstakt/teacher.html](https://marsrakete.github.io/fleisstakt/teacher.html)
-- Repository: [https://github.com/marsrakete/fleisstakt](https://github.com/marsrakete/fleisstakt)
-- Produktlizenz: Apache-2.0, siehe [LICENSE.md](C:/Users/millenseer/OneDrive%20-%20conet.de/Projekte/FleissTakt/LICENSE.md)
+- App für Lernende: [https://marsrakete.github.io/uebebiene/](https://marsrakete.github.io/uebebiene/)
+- Lehrkräfte-App: [https://marsrakete.github.io/uebebiene/teacher.html](https://marsrakete.github.io/uebebiene/teacher.html)
+- Repository: [https://github.com/marsrakete/uebebiene](https://github.com/marsrakete/uebebiene)
+- Produktlizenz: Apache-2.0, siehe [LICENSE.md](./LICENSE.md)
 - Kontakt: [millux@marsrakete.de](mailto:millux@marsrakete.de)
 
 ## Idee
@@ -24,7 +24,7 @@ Dafür bekommen sie Rückmeldung in Form von Fortschritt, Serien und Kärtchen-Z
 
 ## Warum WordPress als Zentrale?
 
-FleißTakt nutzt ein eigenes WordPress-Plugin als Server-Zentrale. Das hat einen sehr praktischen Grund: WordPress ist weit verbreitet, auf vielen bestehenden Websites schon vorhanden und für viele Musikschulen, Lehrkräfte oder Träger technisch leichter zugänglich als ein komplett eigener Backend-Stack.
+ÜbeBiene nutzt ein eigenes WordPress-Plugin als Server-Zentrale. Das hat einen sehr praktischen Grund: WordPress ist weit verbreitet, auf vielen bestehenden Websites schon vorhanden und für viele Musikschulen, Lehrkräfte oder Träger technisch leichter zugänglich als ein komplett eigener Backend-Stack.
 
 Vorteile dieser Entscheidung:
 
@@ -38,7 +38,7 @@ WordPress ist hier also nicht das Produkt selbst, sondern die robuste und niedri
 
 ## Wie die Kommunikation funktioniert
 
-FleißTakt läuft im Alltag über den Server-Sync mit dem WordPress-Plugin.
+ÜbeBiene läuft im Alltag über den Server-Sync mit dem WordPress-Plugin.
 
 ```mermaid
 flowchart LR
@@ -57,7 +57,7 @@ Im laufenden Betrieb bedeutet das:
 
 ## QR-Erkennung in der Lernenden-App
 
-Für die Kopplung per QR-Code nutzt FleißTakt in der Lernenden-App zwei Wege:
+Für die Kopplung per QR-Code nutzt ÜbeBiene in der Lernenden-App zwei Wege:
 
 - wenn verfügbar die Browser-Schnittstelle `BarcodeDetector`
 - als Fallback die Bibliothek `jsQR`
@@ -68,9 +68,9 @@ Verwendete Quelle:
 
 - Repository: [cozmo/jsQR](https://github.com/cozmo/jsQR)
 - Lizenz: [Apache-2.0](https://github.com/cozmo/jsQR/blob/master/LICENSE)
-- Drittanbieter-Hinweise: [THIRD-PARTY-NOTICES.md](C:/Users/millenseer/OneDrive%20-%20conet.de/Projekte/FleissTakt/THIRD-PARTY-NOTICES.md)
+- Drittanbieter-Hinweise: [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)
 
-Für FleißTakt ist das lizenzseitig stimmig: `jsQR` steht ebenfalls unter Apache-2.0 und passt damit sauber zur Projektlizenz.
+Für ÜbeBiene ist das lizenzseitig stimmig: `jsQR` steht ebenfalls unter Apache-2.0 und passt damit sauber zur Projektlizenz.
 
 Wichtig ist nur:
 
@@ -96,7 +96,7 @@ Das Plugin kann als Admin-Werkzeug alles sehen und pflegen. Im normalen Lehrkrä
 
 In der Oberfläche sprechen wir bewusst von `Unterrichten`, weil das für Lehrkräfte und Lernende verständlicher ist. Technisch dürfen diese Objekte intern `Profile` heißen.
 
-In FleißTakt ist eine lernende Person nicht automatisch nur ein einziger Unterricht. Stattdessen trennt das System zwischen Person und mehreren konkreten Unterrichtsbeziehungen.
+In ÜbeBiene ist eine lernende Person nicht automatisch nur ein einziger Unterricht. Stattdessen trennt das System zwischen Person und mehreren konkreten Unterrichtsbeziehungen.
 
 ```mermaid
 flowchart LR
@@ -225,7 +225,7 @@ Dann sind das drei getrennte Unterrichte mit jeweils eigenem Kontext, eigener Sy
 
 ## Kärtchen und Ziele
 
-FleißTakt nutzt motivierende Kärtchen. Diese werden durch Lehrkräfte gezielt gepflegt und zugewiesen.
+ÜbeBiene nutzt motivierende Kärtchen. Diese werden durch Lehrkräfte gezielt gepflegt und zugewiesen.
 
 Dabei gilt:
 
@@ -341,7 +341,7 @@ Wichtig für die Architektur:
 
 ## Berichtswesen
 
-FleißTakt bietet Berichte für Woche, Monat und Gesamtzeitraum. Diese Berichte können in der App angesehen, geteilt, kopiert oder heruntergeladen werden.
+ÜbeBiene bietet Berichte für Woche, Monat und Gesamtzeitraum. Diese Berichte können in der App angesehen, geteilt, kopiert oder heruntergeladen werden.
 
 Im Alltag gilt:
 
@@ -350,7 +350,7 @@ Im Alltag gilt:
 
 ## Backups und Gerätewechsel
 
-FleißTakt nutzt zwei Sicherungswege für Lernende:
+ÜbeBiene nutzt zwei Sicherungswege für Lernende:
 
 - `lokales Backup` als Datei auf dem Gerät
 - `Server-Backup` als letzter vollständiger Stand auf dem WordPress-Server
@@ -382,7 +382,7 @@ Kurz gesagt:
 
 ## Ziel im Unterricht
 
-FleißTakt soll das Gespräch über Üben verbessern:
+ÜbeBiene soll das Gespräch über Üben verbessern:
 
 - weg von reiner Kontrolle
 - hin zu sichtbarem Fortschritt
@@ -391,7 +391,7 @@ FleißTakt soll das Gespräch über Üben verbessern:
 
 ## Ausbaustufen
 
-FleißTakt kann schrittweise wachsen, ohne den einfachen Kern der App zu verlieren.
+ÜbeBiene kann schrittweise wachsen, ohne den einfachen Kern der App zu verlieren.
 
 ### Stufe 1: Solider Alltag
 

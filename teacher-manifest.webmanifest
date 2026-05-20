@@ -1,8 +1,8 @@
 {
-  "id": "/fleisstakt/teacher",
-  "name": "FleißTakt Lehrkräfte",
+  "id": "/uebebiene/teacher",
+  "name": "ÜbeBiene Lehrkräfte",
   "short_name": "Lehrkräfte",
-  "description": "Lehrkräfte-PWA für FleißTakt mit Klassenübersicht, Import und Berichtspaketen.",
+  "description": "Lehrkräfte-PWA für ÜbeBiene mit Klassenübersicht, Import und Berichtspaketen.",
   "start_url": "./teacher.html",
   "scope": "./",
   "display": "standalone",

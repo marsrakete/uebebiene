@@ -1,4 +1,4 @@
-const CACHE_NAME = "fleisstakt-shell-v141";
+const CACHE_NAME = "uebebiene-shell-v166";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -16,7 +16,7 @@ const APP_ASSETS = [
   "./icons/apple-touch-icon.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./icons/fleisstakt-share-qr.svg",
+  "./icons/uebebiene-share-qr.svg",
 ];
 
 const NETWORK_FIRST_FILES = [
@@ -31,6 +31,7 @@ const NETWORK_FIRST_FILES = [
   "/teacher.css",
   "/teacher-manifest.webmanifest",
   "/vendor-jsQR.js",
+  "/vendor-qrcodejs.js",
 ];
 
 function shouldUseNetworkFirst(request) {
@@ -101,7 +102,7 @@ self.addEventListener("notificationclick", (event) => {
     const allClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
     const matchingClient = allClients.find((client) => {
       try {
-        return new URL(client.url).pathname.includes("/fleisstakt/");
+        return new URL(client.url).pathname.includes("/uebebiene/");
       } catch {
         return false;
       }
@@ -125,3 +126,26 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(shouldUseNetworkFirst(event.request) ? networkFirst(event.request) : cacheFirst(event.request));
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

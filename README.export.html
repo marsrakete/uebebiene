@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8" />
-<title>FleißTakt README</title>
+<title>ÜbeBiene README</title>
 <style>
   body { font-family: Segoe UI, Arial, sans-serif; line-height: 1.45; color: #1f2937; margin: 40px; }
   h1,h2,h3 { color: #0f172a; page-break-after: avoid; }
@@ -19,13 +19,13 @@
 </style>
 </head>
 <body>
-<h1 id="fleitakt">FleißTakt</h1>
-<p>FleißTakt ist eine einfache Übe-Begleitung für Musiklernende. Die App hilft dabei, tägliches Üben sichtbar zu machen und mit kleinen Erfolgsmomenten zu verbinden. Dazu kommen eine eigene Lehrkräfte-App und ein WordPress-Plugin als gemeinsame Zentrale.</p>
+<h1 id="fleitakt">ÜbeBiene</h1>
+<p>ÜbeBiene ist eine einfache Übe-Begleitung für Musiklernende. Die App hilft dabei, tägliches Üben sichtbar zu machen und mit kleinen Erfolgsmomenten zu verbinden. Dazu kommen eine eigene Lehrkräfte-App und ein WordPress-Plugin als gemeinsame Zentrale.</p>
 <h2 id="projektinfos">Projektinfos</h2>
 <ul>
-<li>App für Lernende: <a href="https://marsrakete.github.io/fleisstakt/">https://marsrakete.github.io/fleisstakt/</a></li>
-<li>Lehrkräfte-App: <a href="https://marsrakete.github.io/fleisstakt/teacher.html">https://marsrakete.github.io/fleisstakt/teacher.html</a></li>
-<li>Repository: <a href="https://github.com/marsrakete/fleisstakt">https://github.com/marsrakete/fleisstakt</a></li>
+<li>App für Lernende: <a href="https://marsrakete.github.io/uebebiene/">https://marsrakete.github.io/uebebiene/</a></li>
+<li>Lehrkräfte-App: <a href="https://marsrakete.github.io/uebebiene/teacher.html">https://marsrakete.github.io/uebebiene/teacher.html</a></li>
+<li>Repository: <a href="https://github.com/marsrakete/uebebiene">https://github.com/marsrakete/uebebiene</a></li>
 <li>Kontakt: <a href="mailto:millux@marsrakete.de">millux@marsrakete.de</a></li>
 </ul>
 <h2 id="idee">Idee</h2>
@@ -37,7 +37,7 @@
 </ul>
 <p>Dafür bekommen sie Rückmeldung in Form von Fortschritt, Serien und Kärtchen-Zielen. Die App soll nicht kontrollierend wirken, sondern motivieren und das Gespräch über Üben erleichtern.</p>
 <h2 id="warum-wordpress-als-zentrale">Warum WordPress als Zentrale?</h2>
-<p>FleißTakt nutzt inzwischen ein eigenes WordPress-Plugin als Server-Zentrale. Das hat einen sehr praktischen Grund: WordPress ist weit verbreitet, auf vielen bestehenden Websites schon vorhanden und für viele Musikschulen, Lehrkräfte oder Träger technisch leichter zugänglich als ein komplett eigener Backend-Stack.</p>
+<p>ÜbeBiene nutzt inzwischen ein eigenes WordPress-Plugin als Server-Zentrale. Das hat einen sehr praktischen Grund: WordPress ist weit verbreitet, auf vielen bestehenden Websites schon vorhanden und für viele Musikschulen, Lehrkräfte oder Träger technisch leichter zugänglich als ein komplett eigener Backend-Stack.</p>
 <p>Vorteile dieser Entscheidung:</p>
 <ul>
 <li>große Verbreitung und bekannte Hosting-Umgebung</li>
@@ -48,7 +48,7 @@
 </ul>
 <p>WordPress ist hier also nicht das Produkt selbst, sondern die robuste und niedrigschwellige Infrastruktur darunter.</p>
 <h2 id="wie-die-kommunikation-jetzt-funktioniert">Wie die Kommunikation jetzt funktioniert</h2>
-<p>FleißTakt läuft im Alltag über den Server-Sync mit dem WordPress-Plugin.</p>
+<p>ÜbeBiene läuft im Alltag über den Server-Sync mit dem WordPress-Plugin.</p>
 <pre class="mermaid">flowchart LR
     A["Lernenden-App"] -->|Berichte und Profil-Sync| B["WordPress-Plugin"]
 C["Lehrkräfte-App"] -->|Klassen, Lernende, Unterrichte, Kärtchen| B
@@ -74,7 +74,7 @@ C["Lehrkräfte-App"] -->|Klassen, Lernende, Unterrichte, Kärtchen| B
 <p>Das Plugin kann als Admin-Werkzeug alles sehen und pflegen. Im normalen Lehrkräfte-Alltag sorgt die Mandantenlogik aber dafür, dass die Lehrkräfte-App nur die passenden Daten lädt.</p>
 <h2 id="unterrichte-statt-nur-eine-person">Unterrichte statt nur eine Person</h2>
 <p>In der Oberfläche sprechen wir bewusst von <code>Unterrichten</code>, weil das für Lehrkräfte und Lernende verständlicher ist. Technisch dürfen diese Objekte intern weiterhin <code>Profile</code> heißen.</p>
-<p>In FleißTakt ist eine lernende Person nicht automatisch nur ein einziger Unterricht. Stattdessen trennt das System zwischen Person und mehreren konkreten Unterrichtsbeziehungen.</p>
+<p>In ÜbeBiene ist eine lernende Person nicht automatisch nur ein einziger Unterricht. Stattdessen trennt das System zwischen Person und mehreren konkreten Unterrichtsbeziehungen.</p>
 <pre class="mermaid">flowchart LR
     L["Lernende Person&lt;br/>Mila Beispiel"]
 
@@ -171,7 +171,7 @@ C["Lehrkräfte-App"] -->|Klassen, Lernende, Unterrichte, Kärtchen| B
 </ul>
 <p>Dann sind das drei getrennte Unterrichte mit jeweils eigenem Kontext, eigener Synchronisation und eigenen Zielen.</p>
 <h2 id="kartchen-und-ziele">Kärtchen und Ziele</h2>
-<p>FleißTakt kennt weiterhin motivierende Kärtchen. Diese können inzwischen nicht nur global existieren, sondern durch Lehrkräfte gezielt gepflegt und zugewiesen werden.</p>
+<p>ÜbeBiene kennt weiterhin motivierende Kärtchen. Diese können inzwischen nicht nur global existieren, sondern durch Lehrkräfte gezielt gepflegt und zugewiesen werden.</p>
 <p>Dabei gilt:</p>
 <ul>
 <li>Kärtchen können in der Lehrkräfte-App erstellt werden</li>
@@ -243,14 +243,14 @@ C["Lehrkräfte-App"] -->|Klassen, Lernende, Unterrichte, Kärtchen| B
 </ul>
 <p>Die Lehrkräfte-App ist bewusst als eigene PWA getrennt von der Lernenden-App gedacht.</p>
 <h2 id="berichtswesen">Berichtswesen</h2>
-<p>FleißTakt bietet weiterhin Berichte für Woche, Monat und Gesamtzeitraum. Diese Berichte können in der App angesehen, geteilt, kopiert oder heruntergeladen werden.</p>
+<p>ÜbeBiene bietet weiterhin Berichte für Woche, Monat und Gesamtzeitraum. Diese Berichte können in der App angesehen, geteilt, kopiert oder heruntergeladen werden.</p>
 <p>Im neuen Zielbild gilt aber:</p>
 <ul>
 <li>Für die tägliche Zusammenarbeit ist der Server-Sync der Hauptweg.</li>
 <li>Die Lehrkräfte-App bekommt ihre Sicht primär über die WordPress-Zentrale.</li>
 </ul>
 <h2 id="ziel-im-unterricht">Ziel im Unterricht</h2>
-<p>FleißTakt soll das Gespräch über Üben verbessern:</p>
+<p>ÜbeBiene soll das Gespräch über Üben verbessern:</p>
 <ul>
 <li>weg von reiner Kontrolle</li>
 <li>hin zu sichtbarem Fortschritt</li>
@@ -258,7 +258,7 @@ C["Lehrkräfte-App"] -->|Klassen, Lernende, Unterrichte, Kärtchen| B
 <li>hin zu kleinen, motivierenden Erfolgserlebnissen</li>
 </ul>
 <h2 id="ausbaustufen">Ausbaustufen</h2>
-<p>FleißTakt kann schrittweise wachsen, ohne den einfachen Kern der App zu verlieren.</p>
+<p>ÜbeBiene kann schrittweise wachsen, ohne den einfachen Kern der App zu verlieren.</p>
 <h3 id="stufe-1-solider-alltag">Stufe 1: Solider Alltag</h3>
 <ul>
 <li>Einträge bearbeiten und löschen</li>

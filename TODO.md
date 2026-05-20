@@ -38,7 +38,7 @@ Stand: 14.05.2026
 - Ziel:
   Eine zentrale Bereitstellung über die Schul- oder Studio-Website, ohne normales WordPress-Seiten-Rendering mit Theme, Header oder Footer.
 - Technischer Ansatz:
-  - Eigene Plugin-Routen für feste App-URLs bereitstellen, zum Beispiel `/fleisstakt/lernende` und `/fleisstakt/lehrkraft`.
+  - Eigene Plugin-Routen für feste App-URLs bereitstellen, zum Beispiel `/uebebiene/lernende` und `/uebebiene/lehrkraft`.
   - Statische App-Dateien aus dem Plugin ausliefern, inklusive HTML, CSS, JS und Icons.
   - Keine Shortcode-Seiten für die eigentlichen Apps verwenden, damit WordPress nicht die normale Seitenausgabe rendert.
   - Asset-URLs stabil und versionsfähig halten, zum Beispiel über ein Plugin-Asset-Verzeichnis.
