@@ -103,6 +103,7 @@ final class Uebebiene_Sync_Bridge {
 
     $settings = $this->repository->get_settings();
     $app_url = esc_url($this->repository->get_resolved_learner_app_url());
+    $cards_image_url = esc_url(plugins_url('assets/readme-practice-cards.svg', UEBEBIENE_SYNC_BRIDGE_FILE));
     $site_label = esc_html($settings['site_label'] ?? get_bloginfo('name'));
 
     ob_start();
@@ -133,6 +134,9 @@ final class Uebebiene_Sync_Bridge {
       <div class="uebebiene-public-info__sections">
         <section>
           <p class="uebebiene-public-info__eyebrow">Was Lernende erwartet</p>
+          <figure class="uebebiene-public-info__cards-visual">
+            <img src="<?php echo $cards_image_url; ?>" alt="Drei beispielhafte ÜbeBiene-Kärtchen mit Fortschritt, Freischaltung und direkter Vergabe" loading="lazy" />
+          </figure>
           <div class="uebebiene-public-info__grid">
             <article>
               <h3>Kurze Einträge</h3>

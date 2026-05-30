@@ -93,7 +93,8 @@
   text-align: center;
 }
 
-.uebebiene-public-info__qr img,`r`n.uebebiene-public-info__qr-code {
+.uebebiene-public-info__qr img,
+.uebebiene-public-info__qr-code {
   display: block;
   width: min(280px, 100%);
   height: auto;
@@ -110,12 +111,25 @@
   display: block;
   width: 100% !important;
   height: 100% !important;
-}.uebebiene-public-info__qr code {
+}
+
+.uebebiene-public-info__qr code {
   display: block;
   overflow-wrap: anywhere;
   padding: 0.9rem 1rem;
   border-radius: 1rem;
   background: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+.uebebiene-public-info__cards-visual {
+  margin: 0 0 1rem;
+}
+
+.uebebiene-public-info__cards-visual img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 1.25rem;
 }
 
 .uebebiene-public-info__sections {

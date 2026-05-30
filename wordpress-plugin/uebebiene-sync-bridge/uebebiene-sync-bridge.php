@@ -3,7 +3,7 @@
  * Plugin Name: ÜbeBiene Sync Bridge
  * Plugin URI: https://schwoabamunzee.marsrakete.de/
  * Description: Zentrale Synchronisations- und Verwaltungsbrücke für ÜbeBiene mit Lehrkräften, Lernenden, Unterrichten, Klassen, Kärtchen und Berichten.
- * Version: 0.27.11
+ * Version: 0.27.12
  * Author: Marsrakete
  * Requires at least: 6.0
  * Requires PHP: 8.0
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
   exit;
 }
 
-define('UEBEBIENE_SYNC_BRIDGE_VERSION', '0.27.11');
+define('UEBEBIENE_SYNC_BRIDGE_VERSION', '0.27.12');
 define('UEBEBIENE_SYNC_BRIDGE_FILE', __FILE__);
 define('UEBEBIENE_SYNC_BRIDGE_PATH', plugin_dir_path(__FILE__));
 define('UEBEBIENE_SYNC_BRIDGE_URL', plugin_dir_url(__FILE__));

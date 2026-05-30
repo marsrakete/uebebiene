@@ -1,6 +1,6 @@
 # ÜbeBiene Sync Bridge
 
-Aktuelle Plugin-Version: `0.27.11`
+Aktuelle Plugin-Version: `0.27.12`
 
 WordPress-Plugin für zentrale ÜbeBiene-Verwaltung mit:
 
