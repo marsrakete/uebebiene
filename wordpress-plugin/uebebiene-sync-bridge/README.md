@@ -1,6 +1,6 @@
 # ÜbeBiene Sync Bridge
 
-Aktuelle Plugin-Version: `0.27.6`
+Aktuelle Plugin-Version: `0.27.10`
 
 WordPress-Plugin für zentrale ÜbeBiene-Verwaltung mit:
 
@@ -181,7 +181,6 @@ Lernenden-App:
 - zusätzlich kann ein Bericht per Knopfdruck online gesendet werden
 - zusätzlich kann die App Unterricht und Lehrkräfte-Kärtchen direkt vom Server synchronisieren
 - die Erstkopplung läuft bevorzugt über Lernenden-ID und 4-stelligen Verbindungscode
-- Profilpakete bleiben als Ausnahmeweg erhalten
 
 Lehrkräfte-App:
 
@@ -190,7 +189,6 @@ Lehrkräfte-App:
 - zusätzlich kann die App Berichte, Klassen und Kärtchen direkt vom Server laden
 - zusätzlich kann die App Kärtchen direkt an einzelne Unterrichte verleihen und mit Notiz versehen
 - der normale Ablauf für neue Geräte geht über QR-Code oder Lernenden-ID plus Verbindungscode
-- Profilpakete bleiben nur noch als Fallback für Ausnahmefälle
 
 ## Release-Stand
 

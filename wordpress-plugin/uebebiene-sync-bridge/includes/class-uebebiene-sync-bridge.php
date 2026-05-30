@@ -180,7 +180,7 @@ final class Uebebiene_Sync_Bridge {
             </details>
             <details>
               <summary>Was mache ich, wenn QR-Code oder Code nicht funktionieren?</summary>
-              <p>Dann kann die Lehrkraft weiterhin ein Profilpaket als Fallback bereitstellen. Der normale Weg bleibt aber QR-Code oder Code-Eingabe.</p>
+              <p>Bitte die Lernenden-ID und den Verbindungscode noch einmal prüfen oder die Lehrkraft um einen neuen Kopplungs-QR bitten.</p>
             </details>
           </div>
         </section>

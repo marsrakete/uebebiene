@@ -449,7 +449,6 @@ class Uebebiene_Sync_Bridge_Admin {
     echo '<li>Lernende, Unterrichte und Kärtchen in der Lehrkräfte-App pflegen und einmal vollständig synchronisieren.</li>';
     echo '<li>Lernende koppeln das Gerät per QR-Code oder mit Lernenden-ID und Verbindungscode.</li>';
     echo '</ol>';
-    echo '<p>Profilpakete bleiben nur als Fallback für Ausnahmefälle gedacht.</p>';
     echo '<h3>Zuletzt direkt verliehen</h3>';
     if (!$card_awards) {
       echo '<p>Noch keine direkt verliehenen Kärtchen vorhanden.</p>';
