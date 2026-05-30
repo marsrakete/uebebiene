@@ -12,27 +12,6 @@
 - Produktlizenz: Apache-2.0, siehe [LICENSE.md](./LICENSE.md)
 - Kontakt: [millux@marsrakete.de](mailto:millux@marsrakete.de)
 
-## Technische Arbeitsbefehle
-
-Das Projekt hat ein kleines `package.json`, damit lokale Checks und Paket-Erstellung reproduzierbar laufen.
-
-```powershell
-npm run serve
-npm run check
-npm test
-```
-
-Für WordPress-Plugin-ZIPs:
-
-```powershell
-npm run package:plugins
-npm run package:plugins:plain
-```
-
-`npm run package:plugins` erzeugt ZIP-Dateien mit Zeitstempel im Ordner `wordpress-plugin`. Die ZIPs enthalten den jeweiligen Plugin-Ordner als oberste Ebene und verwenden intern WordPress-kompatible `/`-Pfade, zum Beispiel `uebebiene-learner-app/uebebiene-learner-app.php`.
-
-`npm run package:plugins:plain` erzeugt zusätzlich ZIP-Dateien ohne Zeitstempel, zum Beispiel `uebebiene-learner-app.zip`. Plugin-ZIPs sind lokale Auslieferungsartefakte und werden nicht eingecheckt.
-
 ## Idee
 
 Musiklernende tragen nach dem Üben kurz ein:
@@ -75,29 +54,6 @@ Im laufenden Betrieb bedeutet das:
 - Die Lernenden-App lädt Profil, Kärtchen und Server-Stand wieder nach.
 - Lehrkräfte synchronisieren Klassen, Lernende, Unterrichte und Kärtchen mit demselben Server.
 - Das WordPress-Plugin ist die gemeinsame Wahrheit für Unterrichtsbeziehungen und Zuweisungen.
-
-## QR-Erkennung in der Lernenden-App
-
-Für die Kopplung per QR-Code nutzt ÜbeBiene in der Lernenden-App zwei Wege:
-
-- wenn verfügbar die Browser-Schnittstelle `BarcodeDetector`
-- als Fallback die Bibliothek `jsQR`
-
-`jsQR` wird lokal mit dem Projekt ausgeliefert, damit Kamera-Scan und QR-Bild-Import auch auf Geräten funktionieren, deren Browser `BarcodeDetector` nicht oder nicht zuverlässig anbietet.
-
-Verwendete Quelle:
-
-- Repository: [cozmo/jsQR](https://github.com/cozmo/jsQR)
-- Lizenz: [Apache-2.0](https://github.com/cozmo/jsQR/blob/master/LICENSE)
-- Drittanbieter-Hinweise: [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)
-
-Für ÜbeBiene ist das lizenzseitig stimmig: `jsQR` steht ebenfalls unter Apache-2.0 und passt damit sauber zur Projektlizenz.
-
-Wichtig ist nur:
-
-- die Lizenz- und Copyright-Hinweise von `jsQR` müssen erhalten bleiben
-- bei einer Weitergabe des Produkts sollte die verwendete Drittbibliothek sauber dokumentiert sein
-- die Apache-2.0-Lizenz ist keine Copyleft-Lizenz
 
 ## Mandantenfähigkeit
 
@@ -181,60 +137,6 @@ Kurz gesagt:
 - Die `lernende Person` ist der Mensch selbst.
 - Der `Unterricht` ist der konkrete Lernweg.
 - Lehrkraft, Klasse, Ziele, Kärtchen, Berichte und Sync hängen am Unterricht, nicht direkt an der Person.
-
-### Technische Sicht
-
-```mermaid
-flowchart TB
-    ST["Student<br/>Personenstammdaten"] --> PR1["Profile<br/>Unterricht A"]
-    ST --> PR2["Profile<br/>Unterricht B"]
-
-    TE1["Teacher"] --> AS1["Assignment"]
-    TE2["Teacher"] --> AS2["Assignment"]
-    AS1 --> PR1
-    AS2 --> PR2
-
-    CL1["Class"] --> PR1
-    CL2["Class"] --> PR2
-
-    PR1 --> RE1["Reports"]
-    PR1 --> CA1["Card Assignments"]
-    PR1 --> FB1["Feedback Ballot"]
-
-    PR2 --> RE2["Reports"]
-    PR2 --> CA2["Card Assignments"]
-    PR2 --> FB2["Feedback Ballot"]
-
-    FR1["Feedback Round<br/>für Lehrkraft A"] --> FB1
-    FR2["Feedback Round<br/>für Lehrkraft B"] --> FB2
-
-    FB1 --> FA1["Feedback Answers<br/>anonym gespeichert"]
-    FB2 --> FA2["Feedback Answers<br/>anonym gespeichert"]
-```
-
-Diese technische Sicht hilft bei drei wichtigen Regeln:
-
-- `Assignments` verbinden Lehrkraft und Profil.
-- `Reports`, `Kärtchen` und `Feedback-Berechtigung` laufen profilbezogen.
-- Die eigentlichen `Feedback Answers` werden getrennt von der Personen-Zuordnung gespeichert, damit die Auswertung anonym bleibt.
-
-Eine lernende Person ist der Mensch selbst:
-
-- Vorname
-- Nachname
-- E-Mail
-- Messenger-ID
-- optionale externe ID
-
-Ein Unterricht ist die konkrete Unterrichtsbeziehung:
-
-- Instrument
-- Unterrichtsbezeichnung
-- Tagesziel
-- zugeordnete Lehrkraft
-- optionale Klasse
-- Server-ID und Verbindungscode
-- eigene Berichte und eigene Kärtchen-Ziele
 
 Das ist wichtig, weil ein Lernender zum Beispiel gleichzeitig haben kann:
 
@@ -441,3 +343,103 @@ Kurz gesagt:
 - feinere Rechte und Rollen
 - weitere Mandanten- und Organisationslogik für Musikschulen
 - stärkere Einbindung von WordPress als zentrale Unterrichtsplattform
+
+## Technischer Anhang
+
+### Technische Arbeitsbefehle
+
+Das Projekt hat ein kleines `package.json`, damit lokale Checks und Paket-Erstellung reproduzierbar laufen.
+
+```powershell
+npm run serve
+npm run check
+npm test
+```
+
+Für WordPress-Plugin-ZIPs:
+
+```powershell
+npm run package:plugins
+npm run package:plugins:plain
+```
+
+`npm run package:plugins` erzeugt ZIP-Dateien mit Zeitstempel im Ordner `wordpress-plugin`. Die ZIPs enthalten den jeweiligen Plugin-Ordner als oberste Ebene und verwenden intern WordPress-kompatible `/`-Pfade, zum Beispiel `uebebiene-learner-app/uebebiene-learner-app.php`.
+
+`npm run package:plugins:plain` erzeugt zusätzlich ZIP-Dateien ohne Zeitstempel, zum Beispiel `uebebiene-learner-app.zip`. Plugin-ZIPs sind lokale Auslieferungsartefakte und werden nicht eingecheckt.
+
+### QR-Erkennung in der Lernenden-App
+
+Für die Kopplung per QR-Code nutzt ÜbeBiene in der Lernenden-App zwei Wege:
+
+- wenn verfügbar die Browser-Schnittstelle `BarcodeDetector`
+- als Fallback die Bibliothek `jsQR`
+
+`jsQR` wird lokal mit dem Projekt ausgeliefert, damit Kamera-Scan und QR-Bild-Import auch auf Geräten funktionieren, deren Browser `BarcodeDetector` nicht oder nicht zuverlässig anbietet.
+
+Verwendete Quelle:
+
+- Repository: [cozmo/jsQR](https://github.com/cozmo/jsQR)
+- Lizenz: [Apache-2.0](https://github.com/cozmo/jsQR/blob/master/LICENSE)
+- Drittanbieter-Hinweise: [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)
+
+Für ÜbeBiene ist das lizenzseitig stimmig: `jsQR` steht ebenfalls unter Apache-2.0 und passt damit sauber zur Projektlizenz.
+
+Wichtig ist nur:
+
+- die Lizenz- und Copyright-Hinweise von `jsQR` müssen erhalten bleiben
+- bei einer Weitergabe des Produkts sollte die verwendete Drittbibliothek sauber dokumentiert sein
+- die Apache-2.0-Lizenz ist keine Copyleft-Lizenz
+
+### Technische Sicht
+
+```mermaid
+flowchart TB
+    ST["Student<br/>Personenstammdaten"] --> PR1["Profile<br/>Unterricht A"]
+    ST --> PR2["Profile<br/>Unterricht B"]
+
+    TE1["Teacher"] --> AS1["Assignment"]
+    TE2["Teacher"] --> AS2["Assignment"]
+    AS1 --> PR1
+    AS2 --> PR2
+
+    CL1["Class"] --> PR1
+    CL2["Class"] --> PR2
+
+    PR1 --> RE1["Reports"]
+    PR1 --> CA1["Card Assignments"]
+    PR1 --> FB1["Feedback Ballot"]
+
+    PR2 --> RE2["Reports"]
+    PR2 --> CA2["Card Assignments"]
+    PR2 --> FB2["Feedback Ballot"]
+
+    FR1["Feedback Round<br/>für Lehrkraft A"] --> FB1
+    FR2["Feedback Round<br/>für Lehrkraft B"] --> FB2
+
+    FB1 --> FA1["Feedback Answers<br/>anonym gespeichert"]
+    FB2 --> FA2["Feedback Answers<br/>anonym gespeichert"]
+```
+
+Diese technische Sicht hilft bei drei wichtigen Regeln:
+
+- `Assignments` verbinden Lehrkraft und Profil.
+- `Reports`, `Kärtchen` und `Feedback-Berechtigung` laufen profilbezogen.
+- Die eigentlichen `Feedback Answers` werden getrennt von der Personen-Zuordnung gespeichert, damit die Auswertung anonym bleibt.
+
+Eine lernende Person ist der Mensch selbst:
+
+- Vorname
+- Nachname
+- E-Mail
+- Messenger-ID
+- optionale externe ID
+
+Ein Unterricht ist die konkrete Unterrichtsbeziehung:
+
+- Instrument
+- Unterrichtsbezeichnung
+- Tagesziel
+- zugeordnete Lehrkraft
+- optionale Klasse
+- Server-ID und Verbindungscode
+- eigene Berichte und eigene Kärtchen-Ziele
