@@ -12,6 +12,27 @@
 - Produktlizenz: Apache-2.0, siehe [LICENSE.md](./LICENSE.md)
 - Kontakt: [millux@marsrakete.de](mailto:millux@marsrakete.de)
 
+## Technische Arbeitsbefehle
+
+Das Projekt hat ein kleines `package.json`, damit lokale Checks und Paket-Erstellung reproduzierbar laufen.
+
+```powershell
+npm run serve
+npm run check
+npm test
+```
+
+Für WordPress-Plugin-ZIPs:
+
+```powershell
+npm run package:plugins
+npm run package:plugins:plain
+```
+
+`npm run package:plugins` erzeugt ZIP-Dateien mit Zeitstempel im Ordner `wordpress-plugin`. Die ZIPs enthalten den jeweiligen Plugin-Ordner als oberste Ebene und verwenden intern WordPress-kompatible `/`-Pfade, zum Beispiel `uebebiene-learner-app/uebebiene-learner-app.php`.
+
+`npm run package:plugins:plain` erzeugt zusätzlich ZIP-Dateien ohne Zeitstempel, zum Beispiel `uebebiene-learner-app.zip`. Plugin-ZIPs sind lokale Auslieferungsartefakte und werden nicht eingecheckt.
+
 ## Idee
 
 Musiklernende tragen nach dem Üben kurz ein:

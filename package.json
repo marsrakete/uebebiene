@@ -5,6 +5,8 @@
   "description": "UebeBiene practice companion web app.",
   "scripts": {
     "serve": "powershell -ExecutionPolicy Bypass -File ./start-server.ps1",
+    "package:plugins": "powershell -ExecutionPolicy Bypass -File ./package-plugins.ps1",
+    "package:plugins:plain": "powershell -ExecutionPolicy Bypass -File ./package-plugins.ps1 -NoTimestamp",
     "check": "npm run check:js",
     "check:js": "node --check app.js && node --check teacher.js && node --check sw.js && node --check version.js",
     "test": "npm run check"
