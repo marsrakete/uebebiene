@@ -150,6 +150,8 @@ Dann sind das drei getrennte Unterrichte mit jeweils eigenem Kontext, eigener Sy
 
 ÜbeBiene nutzt motivierende Kärtchen. Diese werden durch Lehrkräfte gezielt gepflegt und zugewiesen.
 
+![Beispielhafte ÜbeBiene-Kärtchen](./icons/readme-practice-cards.svg)
+
 Dabei gilt:
 
 - Kärtchen können in der Lehrkräfte-App erstellt werden

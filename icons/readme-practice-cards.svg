@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="360" viewBox="0 0 980 360" role="img" aria-labelledby="title desc">
+  <title id="title">ÜbeBiene Kärtchen-Beispiele</title>
+  <desc id="desc">Drei beispielhafte Übe-Kärtchen mit Status, Symbol, kurzer Beschreibung und Fortschritt.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff8ef"/>
+      <stop offset="1" stop-color="#eef8fb"/>
+    </linearGradient>
+    <linearGradient id="apricot" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe1cf"/>
+      <stop offset="1" stop-color="#f26f3d"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff4c2"/>
+      <stop offset="1" stop-color="#d6a21d"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e0f0e6"/>
+      <stop offset="1" stop-color="#3f8a5f"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#132238" flood-opacity="0.14"/>
+    </filter>
+  </defs>
+
+  <rect width="980" height="360" rx="28" fill="url(#bg)"/>
+  <text x="48" y="62" fill="#132238" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="750">Kärtchen machen Üben sichtbar</text>
+  <text x="48" y="94" fill="#536273" font-family="Segoe UI, Arial, sans-serif" font-size="16">Ziele können automatisch freigeschaltet oder direkt von der Lehrkraft verliehen werden.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="48" y="128" width="268" height="174" rx="20" fill="#ffffff"/>
+    <rect x="48" y="128" width="268" height="8" rx="4" fill="url(#apricot)"/>
+    <circle cx="92" cy="178" r="28" fill="#ffe1cf"/>
+    <text x="92" y="187" text-anchor="middle" fill="#ca572d" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="800">♪</text>
+    <text x="132" y="169" fill="#132238" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="750">Erster Eintrag</text>
+    <text x="132" y="194" fill="#536273" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650">Basis · automatisch</text>
+    <text x="72" y="235" fill="#24313d" font-family="Segoe UI, Arial, sans-serif" font-size="15">Speichere deinen ersten Übeeintrag.</text>
+    <rect x="72" y="258" width="204" height="12" rx="6" fill="#f3e7d8"/>
+    <rect x="72" y="258" width="204" height="12" rx="6" fill="#f26f3d"/>
+    <text x="72" y="291" fill="#ca572d" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">Freigeschaltet</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="356" y="128" width="268" height="174" rx="20" fill="#ffffff"/>
+    <rect x="356" y="128" width="268" height="8" rx="4" fill="url(#gold)"/>
+    <circle cx="400" cy="178" r="28" fill="#fff4c2"/>
+    <text x="400" y="188" text-anchor="middle" fill="#9b7415" font-family="Segoe UI, Arial, sans-serif" font-size="29" font-weight="800">★</text>
+    <text x="440" y="169" fill="#132238" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="750">Wochenziel</text>
+    <text x="440" y="194" fill="#536273" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650">Spezial · Fortschritt</text>
+    <text x="380" y="235" fill="#24313d" font-family="Segoe UI, Arial, sans-serif" font-size="15">Sammle 90 Minuten in dieser Woche.</text>
+    <rect x="380" y="258" width="204" height="12" rx="6" fill="#f3e7d8"/>
+    <rect x="380" y="258" width="136" height="12" rx="6" fill="#d6a21d"/>
+    <text x="380" y="291" fill="#9b7415" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">60/90 Minuten</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="664" y="128" width="268" height="174" rx="20" fill="#ffffff"/>
+    <rect x="664" y="128" width="268" height="8" rx="4" fill="url(#mint)"/>
+    <circle cx="708" cy="178" r="28" fill="#e0f0e6"/>
+    <text x="708" y="188" text-anchor="middle" fill="#2e6f4c" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="800">✓</text>
+    <text x="748" y="169" fill="#132238" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="750">Mutig gespielt</text>
+    <text x="748" y="194" fill="#536273" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="650">Direkt verliehen</text>
+    <text x="688" y="235" fill="#24313d" font-family="Segoe UI, Arial, sans-serif" font-size="15">Persönliche Rückmeldung der Lehrkraft.</text>
+    <rect x="688" y="258" width="204" height="12" rx="6" fill="#3f8a5f"/>
+    <text x="688" y="291" fill="#2e6f4c" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">Mit Notiz sichtbar</text>
+  </g>
+</svg>
