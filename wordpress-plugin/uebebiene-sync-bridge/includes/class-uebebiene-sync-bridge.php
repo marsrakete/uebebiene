@@ -87,14 +87,14 @@ final class Uebebiene_Sync_Bridge {
       UEBEBIENE_SYNC_BRIDGE_VERSION,
       true
     );
-    static  = false;
-    if (!) {
+    static $assets_enqueued = false;
+    if (!$assets_enqueued) {
       wp_add_inline_script(
         'uebebiene-sync-bridge-qrcode',
         "document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.uebebiene-qr-mount[data-qr-text]').forEach(function(mount){if(mount.dataset.qrReady==='1'){return;}var text=mount.getAttribute('data-qr-text')||'';mount.innerHTML='';if(!text||typeof QRCode==='undefined'){return;}new QRCode(mount,{text:text,width:280,height:280,correctLevel:QRCode.CorrectLevel.M});mount.dataset.qrReady='1';});});",
         'after'
       );
-       = true;
+      $assets_enqueued = true;
     }
   }
 
@@ -194,7 +194,7 @@ final class Uebebiene_Sync_Bridge {
     $this->enqueue_public_info_assets();
 
     $settings = $this->repository->get_settings();
-    $teacher_url = esc_url($this->repository->get_default_teacher_app_url());
+    $teacher_url = esc_url($this->repository->get_resolved_teacher_app_url());
     $site_label = esc_html($settings['site_label'] ?? get_bloginfo('name'));
 
     ob_start();

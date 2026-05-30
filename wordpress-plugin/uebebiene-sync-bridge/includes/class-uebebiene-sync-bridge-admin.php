@@ -230,6 +230,7 @@ class Uebebiene_Sync_Bridge_Admin {
           'site_label' => sanitize_text_field((string) ($_POST['site_label'] ?? get_bloginfo('name'))),
           'sync_base_url' => untrailingslashit(esc_url_raw((string) ($_POST['sync_base_url'] ?? site_url('wp-json/uebebiene-sync/v1')))),
           'learner_app_url' => esc_url_raw((string) ($_POST['learner_app_url'] ?? $this->repository->get_default_learner_app_url())),
+          'teacher_app_url' => esc_url_raw((string) ($_POST['teacher_app_url'] ?? $this->repository->get_default_teacher_app_url())),
           'default_practice_categories' => preg_split('/\r?\n|,/', (string) ($_POST['default_practice_categories'] ?? '')),
         ]);
         $this->redirect_with_notice('settings_saved');
@@ -434,6 +435,7 @@ class Uebebiene_Sync_Bridge_Admin {
       'Plugin-Version' => defined('UEBEBIENE_SYNC_BRIDGE_VERSION') ? UEBEBIENE_SYNC_BRIDGE_VERSION : '',
       'Server-URL' => $settings['sync_base_url'] ?? '',
       'Lernenden-App' => $this->repository->get_resolved_learner_app_url(),
+      'Lehrkräfte-App' => $this->repository->get_resolved_teacher_app_url(),
       'Berichtsaufbewahrung' => (int) ($settings['retention_days'] ?? 180) . ' Tage',
       'Startvorgabe für Übekategorien' => implode(' · ', $settings['default_practice_categories'] ?? []),
       'Direkt verliehene Kärtchen' => count($card_awards),
@@ -1066,12 +1068,15 @@ class Uebebiene_Sync_Bridge_Admin {
     echo '<table class="form-table"><tbody>';
     $this->render_text_row('Seitenlabel', 'site_label', $settings['site_label'] ?? get_bloginfo('name'));
     $this->render_text_row('Sync-Basis-URL', 'sync_base_url', $settings['sync_base_url'] ?? trailingslashit(site_url('wp-json/uebebiene-sync/v1')));
-    $this->render_text_row('URL der Lernenden-App', 'learner_app_url', $settings['learner_app_url'] ?? $this->repository->get_default_learner_app_url(), 'Diese URL wird für die öffentliche Einstiegsseite und den App-QR verwendet.');
+    $this->render_text_row('URL der Lernenden-App', 'learner_app_url', $settings['learner_app_url'] ?? $this->repository->get_default_learner_app_url(), 'Diese URL wird für die öffentliche Lernenden-Seite und den Lernenden-App-QR verwendet.');
+    $this->render_text_row('URL der Lehrkräfte-App', 'teacher_app_url', $settings['teacher_app_url'] ?? $this->repository->get_default_teacher_app_url(), 'Diese URL wird für die öffentliche Lehrkräfte-Seite und den Lehrkräfte-App-QR verwendet.');
     $this->render_number_row('Berichte aufbewahren (Tage)', 'retention_days', (int) ($settings['retention_days'] ?? 180), 30, 3650);
     echo '<tr><th>Startvorgabe für Übekategorien</th><td><textarea name="default_practice_categories" rows="8" class="large-text">' . esc_textarea(implode("\n", $settings['default_practice_categories'] ?? Uebebiene_Sync_Bridge_Repository::DEFAULT_PRACTICE_CATEGORIES)) . '</textarea><p class="description">Eine Kategorie pro Zeile. Neue Lehrkräfte starten mit dieser Vorgabe und können ihre eigene Liste danach in der Lehrkräfte-App anpassen.</p></td></tr>';
     echo '</tbody></table>';
     submit_button('Einstellungen speichern');
     echo '</form>';
+
+    $this->render_app_qr_overview();
 
     echo '<hr />';
     echo '<h2>Einfügungen und Shortcodes</h2>';
@@ -1102,6 +1107,44 @@ class Uebebiene_Sync_Bridge_Admin {
       'onclick' => "return window.confirm('Wirklich dieses Backup importieren? Die aktuellen Plugin-Daten auf diesem Server werden dabei vollständig ersetzt.');",
     ]);
     echo '</form>';
+  }
+
+  private function render_app_qr_overview(): void {
+    $this->enqueue_admin_qr_assets();
+
+    $learner_url = $this->repository->get_resolved_learner_app_url();
+    $teacher_url = $this->repository->get_resolved_teacher_app_url();
+
+    echo '<hr />';
+    echo '<h2>App-QR-Codes</h2>';
+    echo '<p>Diese QR-Codes werden aus den aktuell gespeicherten App-URLs erzeugt.</p>';
+    echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;max-width:720px">';
+    $this->render_app_qr_card('Lernenden-App', $learner_url);
+    $this->render_app_qr_card('Lehrkräfte-App', $teacher_url);
+    echo '</div>';
+  }
+
+  private function render_app_qr_card(string $label, string $url): void {
+    echo '<div style="padding:16px;border:1px solid #dcdcde;background:#fff;max-width:320px">';
+    echo '<h3 style="margin-top:0">' . esc_html($label) . '</h3>';
+    echo '<div class="uebebiene-admin-qr-mount" data-qr-text="' . esc_attr($url) . '" role="img" aria-label="' . esc_attr('QR-Code für ' . $label) . '" style="width:220px;height:220px;margin-bottom:12px"></div>';
+    echo '<p style="margin:0"><code style="white-space:normal;overflow-wrap:anywhere">' . esc_html($url) . '</code></p>';
+    echo '</div>';
+  }
+
+  private function enqueue_admin_qr_assets(): void {
+    wp_enqueue_script(
+      'uebebiene-sync-bridge-admin-qrcode',
+      plugins_url('assets/vendor-qrcodejs.js', UEBEBIENE_SYNC_BRIDGE_FILE),
+      [],
+      UEBEBIENE_SYNC_BRIDGE_VERSION,
+      true
+    );
+    wp_add_inline_script(
+      'uebebiene-sync-bridge-admin-qrcode',
+      "document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.uebebiene-admin-qr-mount[data-qr-text]').forEach(function(mount){if(mount.dataset.qrReady==='1'){return;}var text=mount.getAttribute('data-qr-text')||'';mount.innerHTML='';if(!text||typeof QRCode==='undefined'){return;}new QRCode(mount,{text:text,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});mount.dataset.qrReady='1';});});",
+      'after'
+    );
   }
 
   private function format_feedback_period(string $starts_at, string $ends_at): string {

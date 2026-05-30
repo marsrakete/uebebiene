@@ -306,6 +306,7 @@ class Uebebiene_Sync_Bridge_Repository {
       'sync_base_url' => trailingslashit(site_url('wp-json/uebebiene-sync/v1')),
       'site_label' => get_bloginfo('name'),
       'learner_app_url' => $this->get_default_learner_app_url(),
+      'teacher_app_url' => $this->get_default_teacher_app_url(),
       'default_practice_categories' => self::DEFAULT_PRACTICE_CATEGORIES,
     ];
 
@@ -318,6 +319,11 @@ class Uebebiene_Sync_Bridge_Repository {
       $settings['learner_app_url'] = $this->get_default_learner_app_url();
     }
 
+    $configuredTeacherAppUrl = trim((string) ($settings['teacher_app_url'] ?? ''));
+    if ($configuredTeacherAppUrl === '' || untrailingslashit($configuredTeacherAppUrl) === untrailingslashit(self::LEGACY_TEACHER_APP_URL)) {
+      $settings['teacher_app_url'] = $this->get_default_teacher_app_url();
+    }
+
     update_option(self::SETTINGS_OPTION, array_merge($defaults, $settings));
   }
 
@@ -328,6 +334,9 @@ class Uebebiene_Sync_Bridge_Repository {
     }
     if (empty($settings['learner_app_url'])) {
       $settings['learner_app_url'] = $this->get_default_learner_app_url();
+    }
+    if (empty($settings['teacher_app_url'])) {
+      $settings['teacher_app_url'] = $this->get_default_teacher_app_url();
     }
     $settings['default_practice_categories'] = $this->normalize_practice_categories(
       $settings['default_practice_categories'] ?? $settings['practice_categories'] ?? self::DEFAULT_PRACTICE_CATEGORIES
@@ -360,6 +369,17 @@ class Uebebiene_Sync_Bridge_Repository {
 
     return self::LEGACY_TEACHER_APP_URL;
   }
+
+  public function get_resolved_teacher_app_url(): string {
+    $settings = $this->get_settings();
+    $configured = trim((string) ($settings['teacher_app_url'] ?? ''));
+    if ($configured === '' || untrailingslashit($configured) === untrailingslashit(self::LEGACY_TEACHER_APP_URL)) {
+      return $this->get_default_teacher_app_url();
+    }
+
+    return $configured;
+  }
+
   public function update_settings(array $settings): void {
     $current = $this->get_settings();
     if (array_key_exists('default_practice_categories', $settings)) {
