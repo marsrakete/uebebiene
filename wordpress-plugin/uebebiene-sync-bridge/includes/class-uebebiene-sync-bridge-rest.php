@@ -37,6 +37,48 @@ class Uebebiene_Sync_Bridge_Rest {
       'permission_callback' => '__return_true',
     ]);
 
+    register_rest_route('uebebiene-sync/v1', '/push/config', [
+      'methods' => WP_REST_Server::READABLE,
+      'callback' => [$this, 'push_config'],
+      'permission_callback' => '__return_true',
+    ]);
+
+    register_rest_route('uebebiene-sync/v1', '/push/subscribe', [
+      'methods' => WP_REST_Server::CREATABLE,
+      'callback' => [$this, 'push_subscribe'],
+      'permission_callback' => '__return_true',
+    ]);
+
+    register_rest_route('uebebiene-sync/v1', '/push/unsubscribe', [
+      'methods' => WP_REST_Server::CREATABLE,
+      'callback' => [$this, 'push_unsubscribe'],
+      'permission_callback' => '__return_true',
+    ]);
+
+    register_rest_route('uebebiene-sync/v1', '/push/test', [
+      'methods' => WP_REST_Server::CREATABLE,
+      'callback' => [$this, 'push_test'],
+      'permission_callback' => '__return_true',
+    ]);
+
+    register_rest_route('uebebiene-sync/v1', '/push/timer/schedule', [
+      'methods' => WP_REST_Server::CREATABLE,
+      'callback' => [$this, 'push_timer_schedule'],
+      'permission_callback' => '__return_true',
+    ]);
+
+    register_rest_route('uebebiene-sync/v1', '/push/timer/cancel', [
+      'methods' => WP_REST_Server::CREATABLE,
+      'callback' => [$this, 'push_timer_cancel'],
+      'permission_callback' => '__return_true',
+    ]);
+
+    register_rest_route('uebebiene-sync/v1', '/push/dispatch', [
+      'methods' => [WP_REST_Server::READABLE, WP_REST_Server::CREATABLE],
+      'callback' => [$this, 'push_dispatch'],
+      'permission_callback' => '__return_true',
+    ]);
+
     register_rest_route('uebebiene-sync/v1', '/connect-profile', [
       'methods' => WP_REST_Server::CREATABLE,
       'callback' => [$this, 'connect_profile'],
@@ -242,6 +284,210 @@ class Uebebiene_Sync_Bridge_Rest {
       'ok' => true,
       'backup' => $backup,
     ], 200));
+  }
+
+  /**
+   * Liefert die öffentliche Push-Konfiguration für die Lernenden-App.
+   *
+   * @param WP_REST_Request $request REST-Anfrage.
+   * @return WP_REST_Response JSON-Antwort mit VAPID Public Key.
+   */
+  public function push_config(WP_REST_Request $request): WP_REST_Response {
+    $config = $this->repository->get_push_public_config();
+    if ((string) ($config['publicKey'] ?? '') === '') {
+      return $this->error_response('Push ist auf dem Server noch nicht konfiguriert.', 503);
+    }
+
+    return $this->with_no_cache_headers(new WP_REST_Response([
+      'ok' => true,
+      'push' => $config,
+    ], 200));
+  }
+
+  /**
+   * Speichert eine Push-Subscription für das gekoppelte Lernenden-Gerät.
+   *
+   * @param WP_REST_Request $request REST-Anfrage mit Upload-Token und Subscription.
+   * @return WP_REST_Response JSON-Antwort mit Speicherstatus.
+   */
+  public function push_subscribe(WP_REST_Request $request): WP_REST_Response {
+    $profile = $this->profile_from_upload_token($request);
+    if (!$profile) {
+      return $this->error_response('Ungültiges Upload-Token.', 403);
+    }
+
+    $payload = $request->get_json_params();
+    if (!is_array($payload)) {
+      return $this->error_response('Push-Subscription fehlt.', 400);
+    }
+
+    try {
+      $stored = $this->repository->store_push_subscription($profile, $payload);
+    } catch (InvalidArgumentException $exception) {
+      return $this->error_response('Push-Subscription ist unvollständig.', 400);
+    } catch (Throwable $exception) {
+      return $this->error_response('Push-Subscription konnte nicht gespeichert werden.', 500);
+    }
+
+    return new WP_REST_Response([
+      'ok' => true,
+      'subscription' => $stored,
+    ], 200);
+  }
+
+  /**
+   * Entfernt eine Push-Subscription für das gekoppelte Lernenden-Gerät.
+   *
+   * @param WP_REST_Request $request REST-Anfrage mit Upload-Token und Endpoint.
+   * @return WP_REST_Response JSON-Antwort mit Entfernen-Status.
+   */
+  public function push_unsubscribe(WP_REST_Request $request): WP_REST_Response {
+    $profile = $this->profile_from_upload_token($request);
+    if (!$profile) {
+      return $this->error_response('Ungültiges Upload-Token.', 403);
+    }
+
+    $payload = $request->get_json_params();
+    if (!is_array($payload)) {
+      return $this->error_response('Push-Endpunkt fehlt.', 400);
+    }
+
+    $endpoint = (string) ($payload['endpoint'] ?? '');
+    $changed = $this->repository->deactivate_push_subscription($profile, $endpoint);
+    return new WP_REST_Response([
+      'ok' => true,
+      'changed' => $changed,
+    ], 200);
+  }
+
+  /**
+   * Sendet eine sofortige Test-Push-Nachricht an ein Lernenden-Gerät.
+   *
+   * @param WP_REST_Request $request REST-Anfrage mit Upload-Token und deviceId.
+   * @return WP_REST_Response JSON-Antwort mit Versandstatus.
+   */
+  public function push_test(WP_REST_Request $request): WP_REST_Response {
+    $profile = $this->profile_from_upload_token($request);
+    if (!$profile) {
+      return $this->error_response('Ungültiges Upload-Token.', 403);
+    }
+
+    $payload = $request->get_json_params();
+    if (!is_array($payload)) {
+      return $this->error_response('Push-Testdaten fehlen.', 400);
+    }
+
+    $device_id = sanitize_text_field((string) ($payload['deviceId'] ?? ''));
+    $reminder = [
+      'student_profile_id' => (int) $profile['id'],
+      'device_id' => $device_id,
+    ];
+    $sent_count = $this->send_push_to_reminder_subscriptions($reminder);
+    $status = 404;
+    if ($sent_count > 0) {
+      $status = 200;
+    }
+
+    return new WP_REST_Response([
+      'ok' => $sent_count > 0,
+      'sentCount' => $sent_count,
+    ], $status);
+  }
+
+  /**
+   * Plant eine Timer-Erinnerung als Web Push.
+   *
+   * @param WP_REST_Request $request REST-Anfrage mit Upload-Token und Fälligkeitszeit.
+   * @return WP_REST_Response JSON-Antwort mit Reminder-UUID.
+   */
+  public function push_timer_schedule(WP_REST_Request $request): WP_REST_Response {
+    $profile = $this->profile_from_upload_token($request);
+    if (!$profile) {
+      return $this->error_response('Ungültiges Upload-Token.', 403);
+    }
+
+    $payload = $request->get_json_params();
+    if (!is_array($payload)) {
+      return $this->error_response('Push-Erinnerung fehlt.', 400);
+    }
+
+    try {
+      $stored = $this->repository->schedule_push_timer_reminder($profile, $payload);
+    } catch (InvalidArgumentException $exception) {
+      if ($exception->getMessage() === 'push-subscription-fehlt') {
+        return $this->error_response('Für dieses Gerät ist noch keine Push-Subscription gespeichert.', 409);
+      }
+
+      return $this->error_response('Push-Erinnerung ist unvollständig.', 400);
+    } catch (Throwable $exception) {
+      return $this->error_response('Push-Erinnerung konnte nicht geplant werden.', 500);
+    }
+
+    return new WP_REST_Response([
+      'ok' => true,
+      'reminder' => $stored,
+    ], 201);
+  }
+
+  /**
+   * Bricht geplante Timer-Erinnerungen für ein Gerät ab.
+   *
+   * @param WP_REST_Request $request REST-Anfrage mit Upload-Token und deviceId.
+   * @return WP_REST_Response JSON-Antwort mit Abbruchstatus.
+   */
+  public function push_timer_cancel(WP_REST_Request $request): WP_REST_Response {
+    $profile = $this->profile_from_upload_token($request);
+    if (!$profile) {
+      return $this->error_response('Ungültiges Upload-Token.', 403);
+    }
+
+    $payload = $request->get_json_params();
+    if (!is_array($payload)) {
+      return $this->error_response('Push-Abbruchdaten fehlen.', 400);
+    }
+
+    $device_id = sanitize_text_field((string) ($payload['deviceId'] ?? ''));
+    $changed = $this->repository->cancel_push_timer_reminders($profile, $device_id);
+    return new WP_REST_Response([
+      'ok' => true,
+      'changed' => $changed,
+    ], 200);
+  }
+
+  /**
+   * Versendet alle fälligen Push-Erinnerungen.
+   *
+   * @param WP_REST_Request $request REST-Anfrage mit geheimem Dispatch-Key.
+   * @return WP_REST_Response JSON-Antwort mit Anzahl versendeter Erinnerungen.
+   */
+  public function push_dispatch(WP_REST_Request $request): WP_REST_Response {
+    $key = sanitize_text_field((string) ($request->get_param('key') ?? ''));
+    if (!$this->repository->verify_push_dispatch_key($key)) {
+      return $this->error_response('Dispatch-Key ungültig.', 403);
+    }
+
+    $sent = 0;
+    $failed = 0;
+    $reminders = $this->repository->get_due_push_reminders(50);
+    foreach ($reminders as $reminder) {
+      $sent_count = $this->send_push_to_reminder_subscriptions($reminder);
+      if ($sent_count > 0) {
+        $sent += $sent_count;
+        $this->repository->mark_push_reminder_dispatched($reminder, true, 'sent');
+      } else {
+        $failed += 1;
+        $this->repository->mark_push_reminder_dispatched($reminder, false, 'no-active-subscription');
+      }
+    }
+    $deleted_count = $this->repository->cleanup_old_push_reminders(14);
+
+    return new WP_REST_Response([
+      'ok' => true,
+      'reminderCount' => count($reminders),
+      'sentCount' => $sent,
+      'failedCount' => $failed,
+      'deletedOldReminderCount' => $deleted_count,
+    ], 200);
   }
 
   public function connect_profile(WP_REST_Request $request): WP_REST_Response {
@@ -656,6 +902,61 @@ class Uebebiene_Sync_Bridge_Rest {
       'profil-nicht-zugeordnet' => 'Dieses Profil ist der Lehrkraft nicht zugeordnet.',
       default => 'Die Kärtchen-Vergabe konnte nicht verarbeitet werden.',
     };
+  }
+
+  /**
+   * Holt ein Lernenden-Profil anhand des Upload-Tokens aus einer REST-Anfrage.
+   *
+   * @param WP_REST_Request $request REST-Anfrage.
+   * @return array|null Profilzeile oder null.
+   */
+  private function profile_from_upload_token(WP_REST_Request $request): ?array {
+    $upload_token = sanitize_text_field((string) $request->get_header('x-uebebiene-upload-token'));
+    if ($upload_token === '') {
+      return null;
+    }
+
+    $profile = $this->repository->get_profile_by_upload_token($upload_token);
+    if (!$profile) {
+      return null;
+    }
+
+    return $profile;
+  }
+
+  /**
+   * Sendet einen Push an alle aktiven Subscriptions einer Erinnerung.
+   *
+   * @param array $reminder Reminder-Zeile oder minimale Reminder-Daten.
+   * @return int Anzahl erfolgreich versendeter Pushes.
+   */
+  private function send_push_to_reminder_subscriptions(array $reminder): int {
+    $subscriptions = $this->repository->get_active_push_subscriptions_for_reminder($reminder);
+    if (!$subscriptions) {
+      return 0;
+    }
+
+    $sent_count = 0;
+    $vapid = $this->repository->get_push_vapid_config();
+    foreach ($subscriptions as $subscription) {
+      try {
+        $result = Uebebiene_Sync_Bridge_Web_Push::send($subscription, $vapid);
+      } catch (Throwable $exception) {
+        $result = [
+          'ok' => false,
+          'status' => 0,
+          'message' => $exception->getMessage(),
+        ];
+      }
+
+      if (!empty($result['ok'])) {
+        $sent_count += 1;
+      } else {
+        $this->repository->record_push_subscription_result($subscription, (int) ($result['status'] ?? 0));
+      }
+    }
+
+    return $sent_count;
   }
 
   public function send_cors_headers($served, $result, $request, $server) {

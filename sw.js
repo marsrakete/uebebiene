@@ -1,4 +1,4 @@
-const CACHE_NAME = "uebebiene-shell-v166";
+const CACHE_NAME = "uebebiene-shell-v176";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -94,6 +94,22 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+});
+
+self.addEventListener("push", (event) => {
+  const title = "ÜbeBiene";
+  const options = {
+    body: "Dein Übe-Block ist vorbei. Magst du ihn jetzt eintragen? (CRON)",
+    tag: "uebebiene-timer-complete",
+    renotify: true,
+    badge: "./icons/icon-192.png",
+    icon: "./icons/icon-192.png",
+    data: {
+      url: "./",
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {

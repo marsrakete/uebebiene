@@ -353,6 +353,7 @@ class Uebebiene_Sync_Bridge_Admin {
       'cards' => 'Kärtchen',
       'feedback' => 'Feedback',
       'reports' => 'Berichte',
+      'push' => 'Push',
       'settings' => 'Einstellungen',
     ];
 
@@ -389,6 +390,9 @@ class Uebebiene_Sync_Bridge_Admin {
         break;
       case 'reports':
         $this->render_reports_tab($reports, $students, $profiles, $classes);
+        break;
+      case 'push':
+        $this->render_push_tab($settings);
         break;
       case 'feedback':
         $this->render_feedback_tab($feedback_overview, $active_teachers);
@@ -1130,6 +1134,187 @@ class Uebebiene_Sync_Bridge_Admin {
     echo '<div class="uebebiene-admin-qr-mount" data-qr-text="' . esc_attr($url) . '" role="img" aria-label="' . esc_attr('QR-Code für ' . $label) . '" style="width:220px;height:220px;margin-bottom:12px"></div>';
     echo '<p style="margin:0"><code style="white-space:normal;overflow-wrap:anywhere">' . esc_html($url) . '</code></p>';
     echo '</div>';
+  }
+
+  /**
+   * Rendert den eigenen Push-Tab in der Plugin-Verwaltung.
+   *
+   * @param array $settings Plugin-Einstellungen.
+   * @return void Gibt nichts zurück.
+   */
+  private function render_push_tab(array $settings): void {
+    $this->render_push_cron_overview($settings);
+  }
+
+  /**
+   * Rendert die Push-Cron-Informationen im Push-Tab.
+   *
+   * @param array $settings Plugin-Einstellungen.
+   * @return void Gibt nichts zurück.
+   */
+  private function render_push_cron_overview(array $settings): void {
+    $dispatch_key = (string) ($settings['push_dispatch_key'] ?? '');
+    $dispatch_url = '';
+    if ($dispatch_key !== '') {
+      $dispatch_url = add_query_arg([
+        'key' => $dispatch_key,
+      ], rest_url('uebebiene-sync/v1/push/dispatch'));
+    }
+
+    echo '<hr />';
+    echo '<h2>Push-Erinnerungen</h2>';
+    echo '<p>Für Sperrbildschirm-Erinnerungen verarbeitet ein externer Cronjob regelmäßig fällige ÜbeBiene-Pushes.</p>';
+    if ($dispatch_url === '') {
+      echo '<p><strong>Push ist noch nicht vollständig vorbereitet.</strong> Bitte das Plugin erneut aktivieren oder die Einstellungen speichern, damit ein Dispatch-Key erzeugt wird.</p>';
+      return;
+    }
+
+    echo '<table class="form-table"><tbody>';
+    echo '<tr><th>Dispatch-URL für Cron</th><td><code style="white-space:normal;overflow-wrap:anywhere">' . esc_html($dispatch_url) . '</code><p class="description">Diese URL z. B. bei cron-job.org alle 1 Minute aufrufen. Wer den Key kennt, kann fällige Pushes auslösen, aber keine Daten lesen.</p></td></tr>';
+    echo '<tr><th>VAPID Public Key</th><td><code style="white-space:normal;overflow-wrap:anywhere">' . esc_html((string) ($settings['push_vapid_public_key'] ?? '')) . '</code><p class="description">Dieser öffentliche Schlüssel wird an die Lernenden-App ausgeliefert.</p></td></tr>';
+    echo '</tbody></table>';
+
+    $this->render_push_admin_overview();
+  }
+
+  /**
+   * Rendert den Push-Diagnoseüberblick im Push-Tab.
+   *
+   * @return void Gibt nichts zurück.
+   */
+  private function render_push_admin_overview(): void {
+    $overview = $this->repository->get_push_admin_overview(20);
+    $subscription_counts = $overview['subscriptionStatusCounts'] ?? [];
+    $reminder_counts = $overview['reminderStatusCounts'] ?? [];
+    $subscriptions = $overview['subscriptions'] ?? [];
+    $reminders = $overview['reminders'] ?? [];
+    $overdue_pending_count = (int) ($overview['overduePendingCount'] ?? 0);
+
+    echo '<h3>Push-Status</h3>';
+    echo '<p>Diese Diagnose zeigt, ob Geräte für Push registriert sind und ob Timer-Erinnerungen offen, versendet, fehlgeschlagen oder abgebrochen sind.</p>';
+    echo '<table class="widefat striped" style="max-width:900px;margin-bottom:16px"><tbody>';
+    echo '<tr><th>Geräte</th><td>' . esc_html($this->format_push_counts($subscription_counts)) . '</td></tr>';
+    echo '<tr><th>Timer-Erinnerungen</th><td>' . esc_html($this->format_push_counts($reminder_counts)) . '</td></tr>';
+    echo '<tr><th>Fällige offene Timer</th><td>' . esc_html((string) $overdue_pending_count) . '</td></tr>';
+    echo '<tr><th>Aufräumung</th><td>Erledigte Push-Timer mit Status sent, failed oder canceled werden beim Cron-Dispatch nach 14 Tagen gelöscht. Offene pending-Timer bleiben sichtbar.</td></tr>';
+    echo '</tbody></table>';
+
+    echo '<h4>Aktive und bekannte Push-Geräte</h4>';
+    if (!$subscriptions) {
+      echo '<p>Noch keine Push-Geräte registriert.</p>';
+    } else {
+      echo '<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Lernende/r</th><th>Unterricht</th><th>Gerät</th><th>Status</th><th>Fehler</th><th>Zuletzt gesehen</th></tr></thead><tbody>';
+      foreach ($subscriptions as $subscription) {
+        echo '<tr>';
+        echo '<td>' . esc_html($this->format_push_person_label($subscription)) . '</td>';
+        echo '<td>' . esc_html($this->format_empty((string) ($subscription['profile_label'] ?? ''))) . '</td>';
+        echo '<td><code>' . esc_html((string) ($subscription['device_id'] ?? '')) . '</code><br /><span style="color:#646970">' . esc_html($this->format_empty((string) ($subscription['user_agent'] ?? ''))) . '</span></td>';
+        echo '<td>' . esc_html($this->format_push_status((string) ($subscription['status'] ?? ''))) . '</td>';
+        echo '<td>' . esc_html((string) ((int) ($subscription['failure_count'] ?? 0))) . '</td>';
+        echo '<td>' . esc_html($this->format_datetime((string) ($subscription['last_seen_at'] ?? ''))) . '</td>';
+        echo '</tr>';
+      }
+      echo '</tbody></table>';
+    }
+
+    echo '<h4 style="margin-top:18px">Letzte Timer-Erinnerungen</h4>';
+    if (!$reminders) {
+      echo '<p>Noch keine Push-Timer geplant.</p>';
+      return;
+    }
+
+    echo '<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Lernende/r</th><th>Gerät</th><th>Fällig</th><th>Status</th><th>Versuche</th><th>Fehler/Status</th><th>Aktualisiert</th></tr></thead><tbody>';
+    foreach ($reminders as $reminder) {
+      echo '<tr>';
+      echo '<td>' . esc_html($this->format_push_person_label($reminder)) . '</td>';
+      echo '<td><code>' . esc_html((string) ($reminder['device_id'] ?? '')) . '</code></td>';
+      echo '<td>' . esc_html($this->format_datetime((string) ($reminder['due_at'] ?? ''))) . '</td>';
+      echo '<td>' . esc_html($this->format_push_status((string) ($reminder['status'] ?? ''))) . '</td>';
+      echo '<td>' . esc_html((string) ((int) ($reminder['attempts'] ?? 0))) . '</td>';
+      echo '<td>' . esc_html($this->format_empty((string) ($reminder['last_error'] ?? ''))) . '</td>';
+      echo '<td>' . esc_html($this->format_datetime((string) ($reminder['updated_at'] ?? ''))) . '</td>';
+      echo '</tr>';
+    }
+    echo '</tbody></table>';
+  }
+
+  /**
+   * Formatiert Push-Statuszähler für die Admin-Ausgabe.
+   *
+   * @param array $counts Statusnamen als Schlüssel und Anzahl als Wert.
+   * @return string Lesbarer Zählertext.
+   */
+  private function format_push_counts(array $counts): string {
+    if (!$counts) {
+      return 'keine';
+    }
+
+    $parts = [];
+    foreach ($counts as $status => $count) {
+      $parts[] = $this->format_push_status((string) $status) . ': ' . (string) ((int) $count);
+    }
+
+    return implode(' · ', $parts);
+  }
+
+  /**
+   * Formatiert einen Push-Statuscode für die Admin-Ausgabe.
+   *
+   * @param string $status Technischer Statuswert.
+   * @return string Lesbarer Statuswert.
+   */
+  private function format_push_status(string $status): string {
+    switch ($status) {
+      case 'active':
+        return 'aktiv';
+      case 'inactive':
+        return 'inaktiv';
+      case 'pending':
+        return 'offen';
+      case 'sent':
+        return 'versendet';
+      case 'failed':
+        return 'fehlgeschlagen';
+      case 'canceled':
+        return 'abgebrochen';
+      default:
+        return $this->format_empty($status);
+    }
+  }
+
+  /**
+   * Baut den Lernenden-Namen für Push-Diagnosezeilen.
+   *
+   * @param array $row Datenbankzeile mit display_name und app_student_id.
+   * @return string Lesbarer Name mit technischer ID als Fallback.
+   */
+  private function format_push_person_label(array $row): string {
+    $name = trim((string) ($row['display_name'] ?? ''));
+    $app_student_id = trim((string) ($row['app_student_id'] ?? ''));
+    if ($name !== '' && $app_student_id !== '') {
+      return $name . ' (' . $app_student_id . ')';
+    }
+
+    if ($name !== '') {
+      return $name;
+    }
+
+    return $this->format_empty($app_student_id);
+  }
+
+  /**
+   * Liefert einen Gedankenstrich für leere Admin-Werte.
+   *
+   * @param string $value Rohwert.
+   * @return string Rohwert oder Platzhalter.
+   */
+  private function format_empty(string $value): string {
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+      return '—';
+    }
+
+    return $trimmed;
   }
 
   private function enqueue_admin_qr_assets(): void {

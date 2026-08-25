@@ -86,6 +86,7 @@ class Uebebiene_Teacher_App_Admin {
     $sync_base_url = $this->routes->get_sync_base_url();
     $learner_source = $this->routes->get_learner_app_url_source();
     $sync_source = $this->routes->get_sync_base_url_source();
+    $app_version_info = $this->get_app_version_info();
     $notice = sanitize_key((string) ($_GET['uebebiene_teacher_notice'] ?? ''));
 
     echo '<div class="wrap">';
@@ -100,6 +101,9 @@ class Uebebiene_Teacher_App_Admin {
     echo '<table class="widefat striped" style="max-width:980px">';
     echo '<tbody>';
     $rows = [
+      'Plugin-Version' => UEBEBIENE_TEACHER_APP_VERSION,
+      'App-Version' => $app_version_info['appVersion'],
+      'Cache-Version' => $app_version_info['cacheVersion'],
       'App-URL' => $app_url,
       'Manifest-URL' => $manifest_url,
       'Service-Worker-URL' => $sw_url,
@@ -175,5 +179,33 @@ class Uebebiene_Teacher_App_Admin {
     echo '</ul>';
     echo '<p>Die Kopplungs-QRs in der Lehrkräfte-App werden lokal erzeugt und verwenden die aktuell wirksame Lernenden-App-URL aus den Plugin-Einstellungen, der Sync Bridge oder dem Fallback.</p>';
     echo '</div>';
+  }
+
+  /**
+   * Liest die ausgelieferte App- und Cache-Version aus assets/version.js.
+   *
+   * @param void Keine Parameter.
+   * @return array Versionsdaten mit appVersion und cacheVersion.
+   */
+  private function get_app_version_info(): array {
+    $version_file = UEBEBIENE_TEACHER_APP_PATH . 'assets/version.js';
+    $source = '';
+    if (file_exists($version_file)) {
+      $source = (string) file_get_contents($version_file);
+    }
+
+    $app_version = 'unbekannt';
+    $cache_version = 'unbekannt';
+    if (preg_match('/appVersion:\s*"([^"]+)"/', $source, $matches)) {
+      $app_version = (string) $matches[1];
+    }
+    if (preg_match('/cacheVersion:\s*"([^"]+)"/', $source, $matches)) {
+      $cache_version = (string) $matches[1];
+    }
+
+    return [
+      'appVersion' => $app_version,
+      'cacheVersion' => $cache_version,
+    ];
   }
 }

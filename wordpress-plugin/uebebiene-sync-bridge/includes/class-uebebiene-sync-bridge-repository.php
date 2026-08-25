@@ -30,6 +30,8 @@ class Uebebiene_Sync_Bridge_Repository {
   private string $card_awards_table;
   private string $reports_table;
   private string $student_backups_table;
+  private string $push_subscriptions_table;
+  private string $push_reminders_table;
   private string $feedback_rounds_table;
   private string $feedback_questions_table;
   private string $feedback_ballots_table;
@@ -49,6 +51,8 @@ class Uebebiene_Sync_Bridge_Repository {
     $this->card_awards_table = $prefix . 'card_awards';
     $this->reports_table = $prefix . 'reports';
     $this->student_backups_table = $prefix . 'student_backups';
+    $this->push_subscriptions_table = $prefix . 'push_subscriptions';
+    $this->push_reminders_table = $prefix . 'push_reminders';
     $this->feedback_rounds_table = $prefix . 'feedback_rounds';
     $this->feedback_questions_table = $prefix . 'feedback_round_questions';
     $this->feedback_ballots_table = $prefix . 'feedback_ballots';
@@ -228,6 +232,49 @@ class Uebebiene_Sync_Bridge_Repository {
       KEY saved_at (saved_at)
     ) {$charset};";
 
+    $sql[] = "CREATE TABLE {$this->push_subscriptions_table} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      student_profile_id BIGINT UNSIGNED NOT NULL,
+      app_student_id VARCHAR(64) NOT NULL,
+      device_id VARCHAR(120) NOT NULL,
+      endpoint_hash CHAR(64) NOT NULL,
+      endpoint TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth VARCHAR(255) NOT NULL,
+      user_agent VARCHAR(255) NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      failure_count INT NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL,
+      updated_at DATETIME NOT NULL,
+      last_seen_at DATETIME NOT NULL,
+      failed_at DATETIME NULL,
+      PRIMARY KEY (id),
+      UNIQUE KEY endpoint_hash (endpoint_hash),
+      KEY profile_device (student_profile_id, device_id),
+      KEY app_student_id (app_student_id),
+      KEY status (status)
+    ) {$charset};";
+
+    $sql[] = "CREATE TABLE {$this->push_reminders_table} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      reminder_uuid VARCHAR(64) NOT NULL,
+      student_profile_id BIGINT UNSIGNED NOT NULL,
+      app_student_id VARCHAR(64) NOT NULL,
+      device_id VARCHAR(120) NOT NULL,
+      due_at DATETIME NOT NULL,
+      payload_json LONGTEXT NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      attempts INT NOT NULL DEFAULT 0,
+      last_error TEXT NULL,
+      sent_at DATETIME NULL,
+      created_at DATETIME NOT NULL,
+      updated_at DATETIME NOT NULL,
+      PRIMARY KEY (id),
+      UNIQUE KEY reminder_uuid (reminder_uuid),
+      KEY due_status (status, due_at),
+      KEY profile_device (student_profile_id, device_id)
+    ) {$charset};";
+
     $sql[] = "CREATE TABLE {$this->feedback_rounds_table} (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       round_uuid VARCHAR(64) NOT NULL,
@@ -308,6 +355,9 @@ class Uebebiene_Sync_Bridge_Repository {
       'learner_app_url' => $this->get_default_learner_app_url(),
       'teacher_app_url' => $this->get_default_teacher_app_url(),
       'default_practice_categories' => self::DEFAULT_PRACTICE_CATEGORIES,
+      'push_vapid_public_key' => '',
+      'push_vapid_private_key' => '',
+      'push_dispatch_key' => '',
     ];
 
     if (!isset($settings['default_practice_categories']) && isset($settings['practice_categories'])) {
@@ -324,7 +374,22 @@ class Uebebiene_Sync_Bridge_Repository {
       $settings['teacher_app_url'] = $this->get_default_teacher_app_url();
     }
 
-    update_option(self::SETTINGS_OPTION, array_merge($defaults, $settings));
+    $settings = array_merge($defaults, $settings);
+    if ((string) ($settings['push_vapid_public_key'] ?? '') === '' || (string) ($settings['push_vapid_private_key'] ?? '') === '') {
+      try {
+        $keys = Uebebiene_Sync_Bridge_Web_Push::generate_vapid_keys();
+        $settings['push_vapid_public_key'] = $keys['publicKey'];
+        $settings['push_vapid_private_key'] = $keys['privateKeyPem'];
+      } catch (Throwable $exception) {
+        $settings['push_vapid_public_key'] = '';
+        $settings['push_vapid_private_key'] = '';
+      }
+    }
+    if ((string) ($settings['push_dispatch_key'] ?? '') === '') {
+      $settings['push_dispatch_key'] = $this->generate_token('push-dispatch');
+    }
+
+    update_option(self::SETTINGS_OPTION, $settings);
   }
 
   public function get_settings(): array {
@@ -393,6 +458,425 @@ class Uebebiene_Sync_Bridge_Repository {
     return $this->normalize_practice_categories($this->get_settings()['default_practice_categories'] ?? self::DEFAULT_PRACTICE_CATEGORIES);
   }
 
+  /**
+   * Gibt die öffentliche Push-Konfiguration für die Lernenden-App zurück.
+   *
+   * @param void Keine Parameter.
+   * @return array Push-Konfiguration mit VAPID Public Key.
+   */
+  public function get_push_public_config(): array {
+    $settings = $this->get_settings();
+    return [
+      'publicKey' => (string) ($settings['push_vapid_public_key'] ?? ''),
+    ];
+  }
+
+  /**
+   * Gibt die private VAPID-Konfiguration für den Push-Versand zurück.
+   *
+   * @param void Keine Parameter.
+   * @return array VAPID-Konfiguration für den Server.
+   */
+  public function get_push_vapid_config(): array {
+    $settings = $this->get_settings();
+    $admin_email = sanitize_email((string) get_option('admin_email', ''));
+    $subject = home_url('/');
+    if ($admin_email !== '') {
+      $subject = 'mailto:' . $admin_email;
+    }
+
+    return [
+      'publicKey' => (string) ($settings['push_vapid_public_key'] ?? ''),
+      'privateKeyPem' => (string) ($settings['push_vapid_private_key'] ?? ''),
+      'subject' => $subject,
+    ];
+  }
+
+  /**
+   * Prüft den geheimen Schlüssel für den Dispatch-Endpunkt.
+   *
+   * @param string $key Übergebener Dispatch-Schlüssel.
+   * @return bool True, wenn der Schlüssel gültig ist.
+   */
+  public function verify_push_dispatch_key(string $key): bool {
+    $settings = $this->get_settings();
+    $expected = (string) ($settings['push_dispatch_key'] ?? '');
+    if ($expected === '') {
+      return false;
+    }
+
+    return hash_equals($expected, $key);
+  }
+
+  /**
+   * Speichert oder aktualisiert eine Push-Subscription für ein Lernenden-Profil.
+   *
+   * @param array $profile Profilzeile aus der Datenbank.
+   * @param array $payload Subscription-Payload der Lernenden-App.
+   * @return array Gespeicherte Subscription-Metadaten.
+   */
+  public function store_push_subscription(array $profile, array $payload): array {
+    $endpoint = esc_url_raw((string) ($payload['endpoint'] ?? ''));
+    $keys = [];
+    if (is_array($payload['keys'] ?? null)) {
+      $keys = $payload['keys'];
+    }
+    $p256dh = sanitize_text_field((string) ($keys['p256dh'] ?? ''));
+    $auth = sanitize_text_field((string) ($keys['auth'] ?? ''));
+    $device_id = sanitize_text_field((string) ($payload['deviceId'] ?? ''));
+    if ($endpoint === '' || $p256dh === '' || $auth === '' || $device_id === '') {
+      throw new InvalidArgumentException('push-subscription-unvollstaendig');
+    }
+
+    $now = current_time('mysql', true);
+    $row = [
+      'student_profile_id' => (int) $profile['id'],
+      'app_student_id' => (string) $profile['app_student_id'],
+      'device_id' => $device_id,
+      'endpoint_hash' => hash('sha256', $endpoint),
+      'endpoint' => $endpoint,
+      'p256dh' => $p256dh,
+      'auth' => $auth,
+      'user_agent' => sanitize_text_field((string) ($payload['userAgent'] ?? '')),
+      'status' => 'active',
+      'failure_count' => 0,
+      'created_at' => $now,
+      'updated_at' => $now,
+      'last_seen_at' => $now,
+      'failed_at' => null,
+    ];
+
+    $existing_id = (int) $this->wpdb->get_var($this->wpdb->prepare(
+      "SELECT id FROM {$this->push_subscriptions_table} WHERE endpoint_hash = %s LIMIT 1",
+      $row['endpoint_hash']
+    ));
+
+    if ($existing_id > 0) {
+      unset($row['created_at']);
+      $this->assert_db_write_success(
+        $this->wpdb->update(
+          $this->push_subscriptions_table,
+          $row,
+          ['id' => $existing_id],
+          ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s'],
+          ['%d']
+        ),
+        'Push-Subscription konnte nicht aktualisiert werden.'
+      );
+      return [
+        'id' => $existing_id,
+        'status' => 'updated',
+      ];
+    }
+
+    $this->assert_db_write_success(
+      $this->wpdb->insert(
+        $this->push_subscriptions_table,
+        $row,
+        ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s']
+      ),
+      'Push-Subscription konnte nicht gespeichert werden.'
+    );
+
+    return [
+      'id' => (int) $this->wpdb->insert_id,
+      'status' => 'created',
+    ];
+  }
+
+  /**
+   * Deaktiviert eine Push-Subscription anhand ihres Endpunkts.
+   *
+   * @param array $profile Profilzeile aus der Datenbank.
+   * @param string $endpoint Browser-Push-Endpunkt.
+   * @return int Anzahl der geänderten Zeilen.
+   */
+  public function deactivate_push_subscription(array $profile, string $endpoint): int {
+    $endpoint_hash = hash('sha256', esc_url_raw($endpoint));
+    $result = $this->wpdb->update(
+      $this->push_subscriptions_table,
+      [
+        'status' => 'inactive',
+        'updated_at' => current_time('mysql', true),
+      ],
+      [
+        'student_profile_id' => (int) $profile['id'],
+        'endpoint_hash' => $endpoint_hash,
+      ],
+      ['%s', '%s'],
+      ['%d', '%s']
+    );
+    if ($result === false) {
+      return 0;
+    }
+
+    return (int) $result;
+  }
+
+  /**
+   * Plant eine Timer-Push-Erinnerung für ein Gerät.
+   *
+   * @param array $profile Profilzeile aus der Datenbank.
+   * @param array $payload Reminder-Payload mit deviceId und dueAt.
+   * @return array Gespeicherte Reminder-Daten.
+   */
+  public function schedule_push_timer_reminder(array $profile, array $payload): array {
+    $device_id = sanitize_text_field((string) ($payload['deviceId'] ?? ''));
+    $due_at_raw = sanitize_text_field((string) ($payload['dueAt'] ?? ''));
+    $due_at_timestamp = strtotime($due_at_raw);
+    if ($device_id === '' || !$due_at_timestamp) {
+      throw new InvalidArgumentException('push-reminder-unvollstaendig');
+    }
+
+    $active_count = (int) $this->wpdb->get_var($this->wpdb->prepare(
+      "SELECT COUNT(*) FROM {$this->push_subscriptions_table} WHERE student_profile_id = %d AND device_id = %s AND status = 'active'",
+      (int) $profile['id'],
+      $device_id
+    ));
+    if ($active_count <= 0) {
+      throw new InvalidArgumentException('push-subscription-fehlt');
+    }
+
+    $this->cancel_push_timer_reminders($profile, $device_id);
+    $now = current_time('mysql', true);
+    $reminder_uuid = $this->generate_uuid('push-reminder');
+    $message_payload = [
+      'title' => sanitize_text_field((string) ($payload['title'] ?? 'ÜbeBiene')),
+      'body' => sanitize_text_field((string) ($payload['body'] ?? 'Dein Übe-Block ist vorbei. Magst du ihn jetzt eintragen?')),
+      'url' => sanitize_text_field((string) ($payload['url'] ?? './')),
+    ];
+
+    $this->assert_db_write_success(
+      $this->wpdb->insert(
+        $this->push_reminders_table,
+        [
+          'reminder_uuid' => $reminder_uuid,
+          'student_profile_id' => (int) $profile['id'],
+          'app_student_id' => (string) $profile['app_student_id'],
+          'device_id' => $device_id,
+          'due_at' => gmdate('Y-m-d H:i:s', $due_at_timestamp),
+          'payload_json' => wp_json_encode($message_payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+          'status' => 'pending',
+          'attempts' => 0,
+          'last_error' => null,
+          'sent_at' => null,
+          'created_at' => $now,
+          'updated_at' => $now,
+        ],
+        ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s']
+      ),
+      'Push-Erinnerung konnte nicht geplant werden.'
+    );
+
+    return [
+      'reminderUuid' => $reminder_uuid,
+      'dueAt' => gmdate('c', $due_at_timestamp),
+    ];
+  }
+
+  /**
+   * Bricht offene Timer-Push-Erinnerungen für ein Gerät ab.
+   *
+   * @param array $profile Profilzeile aus der Datenbank.
+   * @param string $device_id Gerätekennung.
+   * @return int Anzahl der abgebrochenen Erinnerungen.
+   */
+  public function cancel_push_timer_reminders(array $profile, string $device_id): int {
+    $result = $this->wpdb->update(
+      $this->push_reminders_table,
+      [
+        'status' => 'canceled',
+        'updated_at' => current_time('mysql', true),
+      ],
+      [
+        'student_profile_id' => (int) $profile['id'],
+        'device_id' => sanitize_text_field($device_id),
+        'status' => 'pending',
+      ],
+      ['%s', '%s'],
+      ['%d', '%s', '%s']
+    );
+    if ($result === false) {
+      return 0;
+    }
+
+    return (int) $result;
+  }
+
+  /**
+   * Holt fällige Push-Erinnerungen für den Dispatch.
+   *
+   * @param int $limit Maximale Anzahl.
+   * @return array Fällige Erinnerungen.
+   */
+  public function get_due_push_reminders(int $limit = 20): array {
+    return $this->wpdb->get_results($this->wpdb->prepare(
+      "SELECT * FROM {$this->push_reminders_table} WHERE status = 'pending' AND due_at <= %s ORDER BY due_at ASC LIMIT %d",
+      current_time('mysql', true),
+      max(1, $limit)
+    ), ARRAY_A) ?: [];
+  }
+
+  /**
+   * Holt aktive Push-Subscriptions für eine Erinnerung.
+   *
+   * @param array $reminder Reminder-Zeile.
+   * @return array Aktive Subscriptions.
+   */
+  public function get_active_push_subscriptions_for_reminder(array $reminder): array {
+    return $this->wpdb->get_results($this->wpdb->prepare(
+      "SELECT * FROM {$this->push_subscriptions_table} WHERE student_profile_id = %d AND device_id = %s AND status = 'active'",
+      (int) $reminder['student_profile_id'],
+      (string) $reminder['device_id']
+    ), ARRAY_A) ?: [];
+  }
+
+  /**
+   * Markiert eine Push-Erinnerung nach dem Versand.
+   *
+   * @param array $reminder Reminder-Zeile.
+   * @param bool $sent True bei erfolgreichem Versand.
+   * @param string $message Status- oder Fehlermeldung.
+   * @return void Gibt nichts zurück.
+   */
+  public function mark_push_reminder_dispatched(array $reminder, bool $sent, string $message): void {
+    $status = 'failed';
+    $sent_at = null;
+    if ($sent) {
+      $status = 'sent';
+      $sent_at = current_time('mysql', true);
+    }
+
+    $this->wpdb->update(
+      $this->push_reminders_table,
+      [
+        'status' => $status,
+        'attempts' => ((int) ($reminder['attempts'] ?? 0)) + 1,
+        'last_error' => $message,
+        'sent_at' => $sent_at,
+        'updated_at' => current_time('mysql', true),
+      ],
+      ['id' => (int) $reminder['id']],
+      ['%s', '%d', '%s', '%s', '%s'],
+      ['%d']
+    );
+  }
+
+  /**
+   * Vermerkt einen fehlgeschlagenen Subscription-Versand.
+   *
+   * @param array $subscription Subscription-Zeile.
+   * @param int $status HTTP-Statuscode.
+   * @return void Gibt nichts zurück.
+   */
+  public function record_push_subscription_result(array $subscription, int $status): void {
+    $next_status = (string) ($subscription['status'] ?? 'active');
+    if ($status === 404 || $status === 410) {
+      $next_status = 'inactive';
+    }
+
+    $this->wpdb->update(
+      $this->push_subscriptions_table,
+      [
+        'status' => $next_status,
+        'failure_count' => ((int) ($subscription['failure_count'] ?? 0)) + 1,
+        'failed_at' => current_time('mysql', true),
+        'updated_at' => current_time('mysql', true),
+      ],
+      ['id' => (int) $subscription['id']],
+      ['%s', '%d', '%s', '%s'],
+      ['%d']
+    );
+  }
+
+  /**
+   * Erstellt den Push-Statusüberblick für die Plugin-Verwaltung.
+   *
+   * @param int $limit Maximale Anzahl der letzten Timer-Einträge.
+   * @return array Überblick mit Zählern, Subscriptions und letzten Erinnerungen.
+   */
+  public function get_push_admin_overview(int $limit = 20): array {
+    $now = current_time('mysql', true);
+    $limited_count = max(1, $limit);
+    $subscription_status_rows = $this->wpdb->get_results(
+      "SELECT status, COUNT(*) AS total FROM {$this->push_subscriptions_table} GROUP BY status",
+      ARRAY_A
+    ) ?: [];
+    $reminder_status_rows = $this->wpdb->get_results(
+      "SELECT status, COUNT(*) AS total FROM {$this->push_reminders_table} GROUP BY status",
+      ARRAY_A
+    ) ?: [];
+    $overdue_pending_count = (int) $this->wpdb->get_var($this->wpdb->prepare(
+      "SELECT COUNT(*) FROM {$this->push_reminders_table} WHERE status = 'pending' AND due_at <= %s",
+      $now
+    ));
+    $subscriptions = $this->wpdb->get_results($this->wpdb->prepare(
+      "SELECT ps.id, ps.app_student_id, ps.device_id, ps.user_agent, ps.status, ps.failure_count, ps.last_seen_at, ps.failed_at, p.profile_label, s.display_name
+       FROM {$this->push_subscriptions_table} ps
+       LEFT JOIN {$this->profiles_table} p ON p.id = ps.student_profile_id
+       LEFT JOIN {$this->students_table} s ON s.id = p.student_id
+       ORDER BY ps.updated_at DESC
+       LIMIT %d",
+      $limited_count
+    ), ARRAY_A) ?: [];
+    $reminders = $this->wpdb->get_results($this->wpdb->prepare(
+      "SELECT pr.id, pr.app_student_id, pr.device_id, pr.due_at, pr.status, pr.attempts, pr.last_error, pr.sent_at, pr.created_at, pr.updated_at, p.profile_label, s.display_name
+       FROM {$this->push_reminders_table} pr
+       LEFT JOIN {$this->profiles_table} p ON p.id = pr.student_profile_id
+       LEFT JOIN {$this->students_table} s ON s.id = p.student_id
+       ORDER BY pr.created_at DESC
+       LIMIT %d",
+      $limited_count
+    ), ARRAY_A) ?: [];
+
+    return [
+      'subscriptionStatusCounts' => $this->normalize_count_rows($subscription_status_rows),
+      'reminderStatusCounts' => $this->normalize_count_rows($reminder_status_rows),
+      'overduePendingCount' => $overdue_pending_count,
+      'subscriptions' => $subscriptions,
+      'reminders' => $reminders,
+    ];
+  }
+
+  /**
+   * Löscht alte erledigte Push-Timer aus der Datenbank.
+   *
+   * @param int $retention_days Anzahl Tage, die erledigte Timer sichtbar bleiben.
+   * @return int Anzahl der gelöschten Einträge.
+   */
+  public function cleanup_old_push_reminders(int $retention_days): int {
+    $days = max(1, $retention_days);
+    $cutoff = gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS * $days);
+    $result = $this->wpdb->query($this->wpdb->prepare(
+      "DELETE FROM {$this->push_reminders_table} WHERE status IN ('sent', 'failed', 'canceled') AND updated_at < %s",
+      $cutoff
+    ));
+    if ($result === false) {
+      return 0;
+    }
+
+    return (int) $result;
+  }
+
+  /**
+   * Wandelt SQL-Zählzeilen in eine Statusliste um.
+   *
+   * @param array $rows SQL-Zeilen mit status und total.
+   * @return array Statusnamen als Schlüssel und Anzahl als Wert.
+   */
+  private function normalize_count_rows(array $rows): array {
+    $counts = [];
+    foreach ($rows as $row) {
+      $status = sanitize_key((string) ($row['status'] ?? 'unknown'));
+      if ($status === '') {
+        $status = 'unknown';
+      }
+      $counts[$status] = (int) ($row['total'] ?? 0);
+    }
+
+    return $counts;
+  }
+
   public function get_teacher_practice_categories($teacher): array {
     if (is_numeric($teacher)) {
       $teacher = $this->get_teacher((int) $teacher) ?? [];
@@ -419,6 +903,8 @@ class Uebebiene_Sync_Bridge_Repository {
         'cardAwards' => $this->wpdb->get_results("SELECT * FROM {$this->card_awards_table} ORDER BY id ASC", ARRAY_A),
         'reports' => $this->wpdb->get_results("SELECT * FROM {$this->reports_table} ORDER BY id ASC", ARRAY_A),
         'studentBackups' => $this->wpdb->get_results("SELECT * FROM {$this->student_backups_table} ORDER BY id ASC", ARRAY_A),
+        'pushSubscriptions' => $this->wpdb->get_results("SELECT * FROM {$this->push_subscriptions_table} ORDER BY id ASC", ARRAY_A),
+        'pushReminders' => $this->wpdb->get_results("SELECT * FROM {$this->push_reminders_table} ORDER BY id ASC", ARRAY_A),
         'feedbackRounds' => $this->wpdb->get_results("SELECT * FROM {$this->feedback_rounds_table} ORDER BY id ASC", ARRAY_A),
         'feedbackQuestions' => $this->wpdb->get_results("SELECT * FROM {$this->feedback_questions_table} ORDER BY id ASC", ARRAY_A),
         'feedbackBallots' => $this->wpdb->get_results("SELECT * FROM {$this->feedback_ballots_table} ORDER BY id ASC", ARRAY_A),
@@ -466,6 +952,8 @@ class Uebebiene_Sync_Bridge_Repository {
       $this->wpdb->query("DELETE FROM {$this->feedback_ballots_table}");
       $this->wpdb->query("DELETE FROM {$this->feedback_questions_table}");
       $this->wpdb->query("DELETE FROM {$this->feedback_rounds_table}");
+      $this->wpdb->query("DELETE FROM {$this->push_reminders_table}");
+      $this->wpdb->query("DELETE FROM {$this->push_subscriptions_table}");
       $this->wpdb->query("DELETE FROM {$this->reports_table}");
       $this->wpdb->query("DELETE FROM {$this->student_backups_table}");
       $this->wpdb->query("DELETE FROM {$this->card_awards_table}");
@@ -530,6 +1018,18 @@ class Uebebiene_Sync_Bridge_Repository {
       foreach ($data['studentBackups'] as $row) {
         $this->insert_backup_row($this->student_backups_table, $row, [
           '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s',
+        ]);
+      }
+
+      foreach (($data['pushSubscriptions'] ?? []) as $row) {
+        $this->insert_backup_row($this->push_subscriptions_table, $row, [
+          '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s',
+        ]);
+      }
+
+      foreach (($data['pushReminders'] ?? []) as $row) {
+        $this->insert_backup_row($this->push_reminders_table, $row, [
+          '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s',
         ]);
       }
 
@@ -2943,7 +3443,7 @@ class Uebebiene_Sync_Bridge_Repository {
       $sanitized[$key] = $value === null ? null : (string) $value;
     }
 
-    foreach (['id', 'wp_user_id', 'student_id', 'class_id', 'teacher_id', 'student_profile_id', 'card_id', 'rule_value', 'goal_minutes', 'report_minutes', 'report_streak', 'entries_count', 'is_primary', 'round_id', 'profile_id', 'position', 'is_required', 'min_results_count', 'question_id', 'ballot_id', 'answer_value'] as $int_key) {
+    foreach (['id', 'wp_user_id', 'student_id', 'class_id', 'teacher_id', 'student_profile_id', 'card_id', 'rule_value', 'goal_minutes', 'report_minutes', 'report_streak', 'entries_count', 'is_primary', 'round_id', 'profile_id', 'position', 'is_required', 'min_results_count', 'question_id', 'ballot_id', 'answer_value', 'failure_count', 'attempts'] as $int_key) {
       if (array_key_exists($int_key, $row) && $row[$int_key] !== null && $row[$int_key] !== '') {
         $sanitized[$int_key] = (int) $row[$int_key];
       }

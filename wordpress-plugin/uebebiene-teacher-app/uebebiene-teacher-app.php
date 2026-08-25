@@ -3,7 +3,7 @@
  * Plugin Name: ÜbeBiene Teacher App
  * Plugin URI: https://marsrakete.de/
  * Description: Liefert die ÜbeBiene Lehrkräfte-App als eigenständige PWA innerhalb von WordPress aus.
- * Version: 0.1.27
+ * Version: 0.1.28
  * Author: Marsrakete
  * Requires at least: 6.0
  * Requires PHP: 8.0
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
   exit;
 }
 
-define('UEBEBIENE_TEACHER_APP_VERSION', '0.1.27');
+define('UEBEBIENE_TEACHER_APP_VERSION', '0.1.28');
 define('UEBEBIENE_TEACHER_APP_FILE', __FILE__);
 define('UEBEBIENE_TEACHER_APP_PATH', plugin_dir_path(__FILE__));
 define('UEBEBIENE_TEACHER_APP_URL', plugin_dir_url(__FILE__));

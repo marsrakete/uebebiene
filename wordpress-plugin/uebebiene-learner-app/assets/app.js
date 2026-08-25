@@ -36,6 +36,7 @@ const accentFallbacks = ["apricot", "gold", "sky", "mint"];
 const defaultEntries = [];
 const TIMER_EXTENSION_MINUTES = 2;
 const TIMER_TEST_DURATION_MS = 10000;
+const WRONG_CONNECTION_QR_MESSAGE = "Falscher QR-Code! Gesucht wird der QR-Code für die Kopplung mit der Lehrkraft";
 
 function createEmptyTimerSession() {
   return {
@@ -57,6 +58,7 @@ const state = {
   note: "",
   celebrate: false,
   celebrationText: "Neues Kärtchen vorbereitet. Weiter so!",
+  celebrationShownAt: 0,
   profileName: "",
   studentId: "",
   studentUuid: "",
@@ -87,6 +89,10 @@ const state = {
   timerToneEnabled: true,
   installPrompt: null,
   installReady: false,
+  installStatusMessage: "",
+  pushDeviceId: "",
+  pushSubscriptionStatus: "idle",
+  pushStatusMessage: "",
   prefersDesktopActions: window.matchMedia("(pointer:fine)").matches,
   reportRange: "week",
   settingsOpen: false,
@@ -122,9 +128,11 @@ let qrScannerStream = null;
 let qrScannerFrameHandle = 0;
 let qrScanAbort = false;
 let scannerRetryHandle = 0;
+let qrPayloadHandling = false;
 let activeSyncAutoCloseHandle = 0;
 let studentSyncInProgress = false;
 let studentAutoSyncPending = false;
+let celebrationTimeoutHandle = 0;
 let introFlight = null;
 let introFlightTimeout = 0;
 let ambientFlight = [];
@@ -153,6 +161,7 @@ window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
   state.installPrompt = event;
   state.installReady = true;
+  state.installStatusMessage = "ÜbeBiene kann auf diesem Gerät installiert werden.";
   render();
 });
 
@@ -163,24 +172,65 @@ function scheduleCelebrationDismiss(durationMs = 2600) {
   }
 
   celebrationTimeoutHandle = window.setTimeout(() => {
-    state.celebrate = false;
-    render();
+    dismissCelebrationToast();
   }, durationMs);
+}
+
+/**
+ * Schließt den sichtbaren Status-Toast.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {void} Gibt nichts zurück.
+ */
+function dismissCelebrationToast() {
+  if (!state.celebrate) {
+    return;
+  }
+
+  window.clearTimeout(celebrationTimeoutHandle);
+  state.celebrate = false;
+  state.celebrationShownAt = 0;
+  render();
 }
 
 function showCelebrationToast(message, options = {}) {
   const { durationMs = 2600, renderNow = true } = options;
   state.celebrationText = message;
   state.celebrate = true;
+  state.celebrationShownAt = Date.now();
   scheduleCelebrationDismiss(durationMs);
   if (renderNow) {
     render();
   }
 }
 
+/**
+ * Schließt einen alten Toast bei der nächsten Nutzerinteraktion.
+ *
+ * @param {Event} event Browser-Ereignis der Nutzerinteraktion.
+ * @returns {void} Gibt nichts zurück.
+ */
+function dismissCelebrationToastAfterInteraction(event) {
+  if (!state.celebrate) {
+    return;
+  }
+
+  if (event.target instanceof HTMLElement && event.target.closest(".toast")) {
+    dismissCelebrationToast();
+    return;
+  }
+
+  if (Date.now() - state.celebrationShownAt < 120) {
+    return;
+  }
+
+  dismissCelebrationToast();
+}
+
 window.addEventListener("appinstalled", () => {
   state.installPrompt = null;
   state.installReady = false;
+  state.installStatusMessage = "ÜbeBiene wurde installiert.";
   showCelebrationToast("ÜbeBiene wurde installiert.", { durationMs: 2200 });
 });
 
@@ -198,12 +248,18 @@ document.addEventListener("visibilitychange", () => {
     return;
   }
 
+  if (state.celebrate && Date.now() - state.celebrationShownAt > 60000) {
+    dismissCelebrationToast();
+  }
+
   const didComplete = syncTimerSessionState();
   syncTimerTicking();
   if (didComplete || state.timerSession.status !== "idle") {
     render();
   }
 });
+document.addEventListener("pointerdown", dismissCelebrationToastAfterInteraction, true);
+document.addEventListener("keydown", dismissCelebrationToastAfterInteraction, true);
 logQrScannerDebug("app-loaded", {
   version: typeof globalThis.APP_VERSION_INFO === "object" ? globalThis.APP_VERSION_INFO.appVersion : "",
   secureContext: window.isSecureContext,
@@ -417,6 +473,92 @@ function isRunningStandalonePwa() {
   );
 }
 
+/**
+ * Rendert die sichtbare Installationsrückmeldung im Einstellungsdialog.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {string} HTML für die Statuszeile oder einen leeren String.
+ */
+function renderInstallStatusMessage() {
+  let statusState = "idle";
+  let message = state.installStatusMessage;
+
+  if (isRunningStandalonePwa()) {
+    statusState = "ready";
+    message = "ÜbeBiene läuft als installierte App.";
+  } else if (!message && state.installReady) {
+    statusState = "ready";
+    message = "ÜbeBiene kann auf diesem Gerät installiert werden.";
+  } else if (!message && isAppleMobileDevice()) {
+    message = "ÜbeBiene ist hier im Browser geöffnet. Für Sperrbildschirm-Push bitte als PWA zum Home-Bildschirm hinzufügen.";
+  } else if (!message) {
+    message = "ÜbeBiene ist hier im Browser geöffnet.";
+  }
+
+  if (state.installReady) {
+    statusState = "ready";
+  }
+
+  return `<p class="settings-status" data-state="${statusState}">${escapeHtml(message)}</p>`;
+}
+
+/**
+ * Rendert den Installationsbutton nur, wenn der Browser einen Installationsprompt anbietet.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {string} Button-HTML oder leerer String.
+ */
+function renderInstallActionButton() {
+  if (!state.installReady) {
+    return "";
+  }
+
+  if (isRunningStandalonePwa()) {
+    return "";
+  }
+
+  return '<button class="secondary-action" type="button" id="settings-install-app">App installieren</button>';
+}
+
+/**
+ * Rendert die sichtbare Push-Statusmeldung im Timer-Einstellungsbereich.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {string} HTML für die Statuszeile oder einen leeren String.
+ */
+function renderPushStatusMessage() {
+  if (!state.pushStatusMessage) {
+    return "";
+  }
+
+  let statusState = "idle";
+  if (state.pushSubscriptionStatus === "active") {
+    statusState = "ready";
+  } else if (state.pushSubscriptionStatus === "error") {
+    statusState = "error";
+  }
+
+  return `<p class="settings-status" data-state="${statusState}">${escapeHtml(state.pushStatusMessage)}</p>`;
+}
+
+/**
+ * Rendert den Push-Testbutton, wenn das Gerät mit dem Server verbunden ist.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {string} Button-HTML oder leerer String.
+ */
+function renderPushTestButton() {
+  if (!state.syncUploadToken) {
+    return "";
+  }
+
+  if (!canUseWebPushNotifications()) {
+    return "";
+  }
+
+  return `<button class="secondary-action" type="button" id="send-push-test">Push-Test senden</button>`;
+}
+
 function canUseTimerNotifications() {
   return typeof window !== "undefined" && "Notification" in window;
 }
@@ -483,7 +625,16 @@ function shouldOfferTimerNotificationPermission() {
     return false;
   }
 
-  return getTimerNotificationPermission() === "default";
+  const permission = getTimerNotificationPermission();
+  if (permission === "default") {
+    return true;
+  }
+
+  if (permission === "granted" && state.syncUploadToken && state.pushSubscriptionStatus !== "active" && canUseWebPushNotifications()) {
+    return true;
+  }
+
+  return false;
 }
 
 async function requestTimerNotificationPermission() {
@@ -506,6 +657,9 @@ async function requestTimerNotificationPermission() {
     if (permission === "granted") {
       state.celebrationText = "Mitteilungen sind jetzt erlaubt. ÜbeBiene darf dich an den Timer erinnern.";
       state.celebrate = true;
+      if (state.syncUploadToken) {
+        await registerPushSubscriptionWithServer();
+      }
     } else if (permission === "denied") {
       state.celebrationText = "Mitteilungen wurden abgelehnt. Der Timer funktioniert trotzdem in der App.";
       state.celebrate = true;
@@ -518,6 +672,228 @@ async function requestTimerNotificationPermission() {
     render();
     return "error";
   }
+}
+
+/**
+ * Prüft, ob echte Web-Push-Subscriptions in dieser Umgebung möglich sind.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {boolean} True, wenn Service Worker, PushManager und Notifications verfügbar sind.
+ */
+function canUseWebPushNotifications() {
+  return typeof navigator !== "undefined"
+    && "serviceWorker" in navigator
+    && "PushManager" in window
+    && canUseTimerNotifications();
+}
+
+/**
+ * Gibt eine stabile lokale Gerätekennung für Push-Subscriptions zurück.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {string} Gerätekennung.
+ */
+function ensurePushDeviceId() {
+  if (state.pushDeviceId) {
+    return state.pushDeviceId;
+  }
+
+  state.pushDeviceId = `push-device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  persistState();
+  return state.pushDeviceId;
+}
+
+/**
+ * Wandelt einen Base64url-kodierten VAPID Public Key in Bytes um.
+ *
+ * @param {string} value Base64url-kodierter Schlüssel.
+ * @returns {Uint8Array} Dekodierte Schlüsselbytes.
+ */
+function base64UrlToUint8Array(value) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = `${value}${padding}`.replaceAll("-", "+").replaceAll("_", "/");
+  const raw = window.atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let index = 0; index < raw.length; index += 1) {
+    output[index] = raw.charCodeAt(index);
+  }
+  return output;
+}
+
+/**
+ * Lädt die öffentliche Push-Konfiguration vom Sync-Server.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {Promise<object>} Push-Konfiguration.
+ */
+async function fetchPushConfig() {
+  const response = await fetch(`${state.syncBaseUrl}/push/config`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.ok || !data?.push?.publicKey) {
+    throw new Error(data?.message || "Push-Konfiguration konnte nicht geladen werden.");
+  }
+  return data.push;
+}
+
+/**
+ * Holt die aktive Service-Worker-Registration für Push.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {Promise<ServiceWorkerRegistration>} Service-Worker-Registration.
+ */
+async function getPushServiceWorkerRegistration() {
+  if (serviceWorkerRegistration) {
+    return serviceWorkerRegistration;
+  }
+
+  if (!("serviceWorker" in navigator)) {
+    throw new Error("Service Worker sind auf diesem Gerät nicht verfügbar.");
+  }
+
+  serviceWorkerRegistration = await navigator.serviceWorker.ready;
+  return serviceWorkerRegistration;
+}
+
+/**
+ * Registriert dieses Gerät für Web Push beim ÜbeBiene-Sync-Server.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {Promise<void>} Wird erfüllt, wenn die Subscription gespeichert wurde.
+ */
+async function registerPushSubscriptionWithServer() {
+  if (!state.syncUploadToken) {
+    throw new Error("Bitte dieses Gerät zuerst mit einer Lehrkraft verbinden.");
+  }
+  if (!canUseWebPushNotifications()) {
+    throw new Error("Web Push ist auf diesem Gerät gerade nicht verfügbar.");
+  }
+
+  const permission = getTimerNotificationPermission();
+  if (permission !== "granted") {
+    throw new Error("Mitteilungen sind noch nicht erlaubt.");
+  }
+
+  const config = await fetchPushConfig();
+  const registration = await getPushServiceWorkerRegistration();
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: base64UrlToUint8Array(config.publicKey),
+    });
+  }
+
+  const payload = subscription.toJSON();
+  payload.deviceId = ensurePushDeviceId();
+  payload.userAgent = navigator.userAgent;
+
+  const response = await fetch(`${state.syncBaseUrl}/push/subscribe`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Uebebiene-Upload-Token": state.syncUploadToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.ok) {
+    throw new Error(data?.message || "Push-Subscription konnte nicht gespeichert werden.");
+  }
+
+  state.pushSubscriptionStatus = "active";
+  state.pushStatusMessage = "Push-Erinnerungen sind für dieses Gerät aktiv.";
+  persistState();
+}
+
+/**
+ * Sendet eine sofortige Test-Push-Nachricht an dieses Gerät.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {Promise<void>} Wird erfüllt, wenn der Server den Test versendet hat.
+ */
+async function sendPushTestNotification() {
+  if (state.pushSubscriptionStatus !== "active") {
+    await registerPushSubscriptionWithServer();
+  }
+
+  const response = await fetch(`${state.syncBaseUrl}/push/test`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Uebebiene-Upload-Token": state.syncUploadToken,
+    },
+    body: JSON.stringify({
+      deviceId: ensurePushDeviceId(),
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.ok) {
+    throw new Error(data?.message || "Push-Test konnte nicht gesendet werden.");
+  }
+
+  state.pushStatusMessage = "Push-Test wurde gesendet.";
+  persistState();
+}
+
+/**
+ * Plant eine serverseitige Push-Erinnerung für den laufenden Timer.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {Promise<void>} Wird erfüllt, wenn die Erinnerung geplant wurde.
+ */
+async function scheduleTimerPushReminder() {
+  if (state.pushSubscriptionStatus !== "active" || !state.syncUploadToken || !state.timerSession.endsAt) {
+    return;
+  }
+
+  const response = await fetch(`${state.syncBaseUrl}/push/timer/schedule`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Uebebiene-Upload-Token": state.syncUploadToken,
+    },
+    body: JSON.stringify({
+      deviceId: ensurePushDeviceId(),
+      dueAt: state.timerSession.endsAt,
+      title: "ÜbeBiene",
+      body: "Dein Übe-Block ist vorbei. Magst du ihn jetzt eintragen?",
+      url: "./",
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.ok) {
+    throw new Error(data?.message || "Push-Erinnerung konnte nicht geplant werden.");
+  }
+
+  state.pushStatusMessage = "Push-Erinnerung für diesen Timer ist geplant.";
+  persistState();
+  render();
+}
+
+/**
+ * Bricht offene serverseitige Push-Erinnerungen für dieses Gerät ab.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {Promise<void>} Wird erfüllt, wenn der Abbruch verarbeitet wurde.
+ */
+async function cancelTimerPushReminder() {
+  if (!state.syncUploadToken || !state.pushDeviceId) {
+    return;
+  }
+
+  await fetch(`${state.syncBaseUrl}/push/timer/cancel`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Uebebiene-Upload-Token": state.syncUploadToken,
+    },
+    body: JSON.stringify({
+      deviceId: state.pushDeviceId,
+    }),
+  }).catch(() => {});
 }
 
 async function unlockTimerAudio() {
@@ -682,6 +1058,7 @@ function syncTimerSessionState() {
   vibrateTimerCompletion();
   playTimerCompletionTone();
   void notifyTimerCompleted();
+  void cancelTimerPushReminder();
   syncTimerTicking();
   return true;
 }
@@ -708,6 +1085,10 @@ function startTimerSession(minutes, options = {}) {
   };
   void unlockTimerAudio();
   persistState();
+  void scheduleTimerPushReminder().catch((error) => {
+    state.pushStatusMessage = error?.message || "Push-Erinnerung konnte nicht geplant werden.";
+    persistState();
+  });
   syncTimerTicking();
 }
 
@@ -723,6 +1104,7 @@ function pauseTimerSession() {
     endsAt: "",
   };
   persistState();
+  void cancelTimerPushReminder();
   syncTimerTicking();
 }
 
@@ -739,6 +1121,10 @@ function resumeTimerSession() {
     endsAt: new Date(Date.now() + remainingMs).toISOString(),
   };
   persistState();
+  void scheduleTimerPushReminder().catch((error) => {
+    state.pushStatusMessage = error?.message || "Push-Erinnerung konnte nicht geplant werden.";
+    persistState();
+  });
   syncTimerTicking();
 }
 
@@ -760,12 +1146,17 @@ function extendTimerSession(minutes = TIMER_EXTENSION_MINUTES) {
     notifiedAt: "",
   };
   persistState();
+  void scheduleTimerPushReminder().catch((error) => {
+    state.pushStatusMessage = error?.message || "Push-Erinnerung konnte nicht geplant werden.";
+    persistState();
+  });
   syncTimerTicking();
 }
 
 function clearTimerSession() {
   state.timerSession = createEmptyTimerSession();
   persistState();
+  void cancelTimerPushReminder();
   syncTimerTicking();
 }
 
@@ -800,6 +1191,7 @@ function stopTimerSession() {
       notifiedAt: "",
     };
     persistState();
+    void cancelTimerPushReminder();
     syncTimerTicking();
     return;
   }
@@ -1976,6 +2368,9 @@ function hydrateState() {
     state.timerSession = normalizeTimerSession(parsed.timerSession);
     state.timerVibrationEnabled = parsed.timerVibrationEnabled !== false;
     state.timerToneEnabled = parsed.timerToneEnabled !== false;
+    state.pushDeviceId = `${parsed.pushDeviceId || ""}`;
+    state.pushSubscriptionStatus = `${parsed.pushSubscriptionStatus || "idle"}`;
+    state.pushStatusMessage = `${parsed.pushStatusMessage || ""}`;
     state.selectedStudentCardId = `${parsed.selectedStudentCardId || ""}`;
     state.profileFormDraft = parsed.profileFormDraft && typeof parsed.profileFormDraft === "object"
       ? parsed.profileFormDraft
@@ -2007,6 +2402,9 @@ function persistState() {
       timerSession: state.timerSession,
       timerVibrationEnabled: state.timerVibrationEnabled,
       timerToneEnabled: state.timerToneEnabled,
+      pushDeviceId: state.pushDeviceId,
+      pushSubscriptionStatus: state.pushSubscriptionStatus,
+      pushStatusMessage: state.pushStatusMessage,
       selectedStudentCardId: state.selectedStudentCardId,
       practiceCategories: state.practiceCategories,
       syncBaseUrl: state.syncBaseUrl,
@@ -2639,6 +3037,12 @@ function applyConnectionCandidate(candidate) {
   };
 }
 
+/**
+ * Stoppt die laufende QR-Kamera und räumt Video-Element, Animationsframe und Media-Tracks auf.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {void} Gibt nichts zurück.
+ */
 function stopQrScanner() {
   logQrScannerDebug("stop-scanner", {
     hadStream: Boolean(qrScannerStream),
@@ -2651,40 +3055,123 @@ function stopQrScanner() {
   scannerRetryHandle = 0;
   const video = document.querySelector("#connect-qr-video");
   if (video) {
-    video.pause?.();
-    video.srcObject = null;
+    try {
+      if (typeof video.pause === "function") {
+        video.pause();
+      }
+    } catch (error) {
+      logQrScannerDebug("video-pause-cleanup-error", {
+        name: error?.name || "",
+        message: error?.message || "",
+      });
+    }
+
+    try {
+      video.srcObject = null;
+      video.removeAttribute("src");
+      if (typeof video.load === "function") {
+        video.load();
+      }
+    } catch (error) {
+      logQrScannerDebug("video-src-cleanup-error", {
+        name: error?.name || "",
+        message: error?.message || "",
+      });
+    }
   }
   if (qrScannerStream) {
-    qrScannerStream.getTracks().forEach((track) => track.stop());
+    qrScannerStream.getTracks().forEach((track) => {
+      try {
+        track.stop();
+      } catch (error) {
+        logQrScannerDebug("track-stop-cleanup-error", {
+          kind: track.kind || "",
+          name: error?.name || "",
+          message: error?.message || "",
+        });
+      }
+    });
     qrScannerStream = null;
   }
 }
 
-function closeScannerDialog() {
+/**
+ * Schließt den QR-Scanner und räumt den Dialogzustand auf.
+ *
+ * @param {boolean} reopenSettings Legt fest, ob danach wieder die Einstellungen geöffnet werden.
+ * @returns {void} Gibt nichts zurück.
+ */
+function closeScannerDialog(reopenSettings = true) {
   logQrScannerDebug("close-scanner-dialog", {
     scannerState: state.scannerState,
     scannerOpen: state.scannerOpen,
+    reopenSettings,
   });
   stopQrScanner();
   state.scannerOpen = false;
   state.scannerMessage = "";
   state.scannerState = "idle";
   state.scannerDebugLines = [];
-  state.settingsOpen = true;
-  state.settingsFocusId = "connect-profile-button";
+  if (reopenSettings) {
+    state.settingsOpen = true;
+    state.settingsFocusId = "connect-profile-button";
+  } else {
+    state.settingsOpen = false;
+    state.settingsFocusId = "";
+  }
+  const scannerDialog = document.querySelector("#scanner-dialog");
+  if (scannerDialog && scannerDialog.open && typeof scannerDialog.close === "function") {
+    try {
+      scannerDialog.close();
+    } catch (error) {
+      logQrScannerDebug("scanner-dialog-close-error", {
+        name: error?.name || "",
+        message: error?.message || "",
+      });
+    }
+  }
   applyModalScrollLock();
   render();
 }
 
+/**
+ * Übernimmt einen gescannten Kopplungs-QR-Code und startet danach die Verbindung zur Lehrkraft.
+ *
+ * @param {string} rawValue Rohinhalt des erkannten QR-Codes.
+ * @returns {Promise<void>} Wird erfüllt, sobald die Kopplungsverarbeitung abgeschlossen ist.
+ */
 async function handleScannedConnectionPayload(rawValue) {
   logQrScannerDebug("qr-payload-detected", {
     length: `${rawValue || ""}`.length,
     preview: `${rawValue || ""}`.slice(0, 120),
   });
+  if (qrPayloadHandling) {
+    logQrScannerDebug("qr-payload-ignored", {
+      reason: "already-handling",
+    });
+    return;
+  }
+
   const candidate = parseConnectionPayload(rawValue);
+  if (!candidate) {
+    logQrScannerDebug("qr-payload-rejected", {
+      reason: "wrong-connection-qr",
+    });
+    stopQrScanner();
+    state.scannerState = "error";
+    state.scannerMessage = WRONG_CONNECTION_QR_MESSAGE;
+    render();
+    return;
+  }
+
   const connection = applyConnectionCandidate(candidate);
-  closeScannerDialog();
-  return connectProfileFlow(connection.studentId, connection.connectCode);
+  qrPayloadHandling = true;
+  try {
+    closeScannerDialog(false);
+    await connectProfileFlow(connection.studentId, connection.connectCode);
+  } finally {
+    qrPayloadHandling = false;
+  }
 }
 
 async function attachQrScannerStreamToVideo() {
@@ -2769,6 +3256,7 @@ async function startQrScanner() {
     return;
   }
 
+  qrPayloadHandling = false;
   stopQrScanner();
   qrScanAbort = false;
   state.scannerState = "starting";
@@ -2850,6 +3338,8 @@ async function startQrScanner() {
 
 function openScannerDialog() {
   logQrScannerDebug("open-scanner-dialog");
+  const settingsDialog = document.querySelector("#settings-dialog");
+  qrPayloadHandling = false;
   state.settingsOpen = false;
   state.settingsFocusId = "";
   state.scannerOpen = true;
@@ -2858,6 +3348,16 @@ function openScannerDialog() {
   state.scannerMessage = scannerSupported()
     ? "Kamera wird vorbereitet..."
     : "Dieses Gerät unterstützt die direkte Kameraerkennung gerade nicht vollständig. Du kannst trotzdem ein QR-Bild auswählen oder ID und Code eingeben.";
+  if (settingsDialog && settingsDialog.open && typeof settingsDialog.close === "function") {
+    try {
+      settingsDialog.close();
+    } catch (error) {
+      logQrScannerDebug("settings-dialog-close-before-scanner-error", {
+        name: error?.name || "",
+        message: error?.message || "",
+      });
+    }
+  }
   applyModalScrollLock();
   render();
 }
@@ -2912,6 +3412,8 @@ function resetStudentAppForTesting() {
   state.syncState = "idle";
   state.syncLastSuccessAt = "";
   state.syncLastError = "";
+  state.pushSubscriptionStatus = "idle";
+  state.pushStatusMessage = "";
   state.activeFeedbackRound = null;
   state.feedbackAnswers = {};
   state.feedbackStatus = "idle";
@@ -4252,61 +4754,11 @@ function render() {
         <form method="dialog" class="settings-sheet" tabindex="-1">
           <div class="section-head">
             <h2>Einstellungen</h2>
-            <p>Installieren, Backup und Updates an einem Ort.</p>
+            <p>Verbindung, Erinnerungen und Sicherung an einem Ort.</p>
           </div>
 
           <section class="settings-block">
-            <h3>App</h3>
-            <p class="settings-copy">Version ${escapeHtml(state.versionInfo.appVersion)} · ${escapeHtml(state.versionInfo.label || "ÜbeBiene")}</p>
-            <div class="settings-actions">
-              <button class="secondary-action" type="button" id="settings-install-app">
-                ${state.installReady ? "App installieren" : "Installation prüfen"}
-              </button>
-            </div>
-          </section>
-
-          <section class="settings-block">
-            <h3>Backup</h3>
-            <p class="settings-copy">Die Lernenden-App hält Übeverlauf, Lernenden-ID und deine Daten auf diesem Gerät lokal fest. Deshalb ist ein Backup hier wichtig. Backup speichert die Datei lokal. Für Gerätewechsel kann dieselbe Datei direkt über Teilen an das neue Gerät geschickt werden. Zusätzlich kann ein letzter Stand auf dem Server gespeichert werden.</p>
-            <div class="settings-actions">
-              <button class="secondary-action" type="button" id="move-device-button">Auf neues Gerät umziehen</button>
-              <button class="secondary-action" type="button" id="export-backup-button">Backup speichern</button>
-              <button class="secondary-action" type="button" id="save-backup-server-button" ${state.syncUploadToken ? "" : "disabled"}>Server-Backup speichern</button>
-              <button class="secondary-action" type="button" id="restore-backup-server-button" ${state.syncUploadToken ? "" : "disabled"}>Letztes Server-Backup wiederherstellen</button>
-              <label class="secondary-action settings-file-label" for="backup-input">Backup importieren</label>
-              <input id="backup-input" type="file" accept="application/json,.json" hidden />
-            </div>
-            <p class="settings-copy">${state.syncUploadToken ? `Server-Backup läuft über ${escapeHtml(state.syncSiteLabel || state.syncBaseUrl)} und ergänzt dein lokales Backup.` : "Für Server-Backups bitte zuerst das Lernenden-Profil mit dem Unterrichtsserver verbinden."}</p>
-          </section>
-
-          <section class="settings-block">
-            <h3>Übe-Timer</h3>
-            <p class="settings-copy">ÜbeBiene nutzt Erinnerung mit Mitteilung, Vibration und optional einen kurzen Ton. Das ist eine Erinnerung, kein nativer Alarm.</p>
-            <p class="settings-status" data-state="${getTimerNotificationPermission() === "denied" ? "error" : "idle"}">${escapeHtml(getTimerNotificationHint())}</p>
-            <div class="timer-settings-list">
-              <label class="settings-toggle" for="timer-vibration-enabled">
-                <input id="timer-vibration-enabled" type="checkbox" ${state.timerVibrationEnabled ? "checked" : ""} />
-                <div>
-                  <strong>Vibration nutzen</strong>
-                  <span>Beim Timer-Ende kurz vibrieren, wenn das Gerät das unterstützt.</span>
-                </div>
-              </label>
-              <label class="settings-toggle" for="timer-tone-enabled">
-                <input id="timer-tone-enabled" type="checkbox" ${state.timerToneEnabled ? "checked" : ""} />
-                <div>
-                  <strong>Kurzen Ton nutzen</strong>
-                  <span>Wird beim Start des Timers vorbereitet und beim Ende abgespielt, wenn der Browser das zulässt.</span>
-                </div>
-              </label>
-            </div>
-            <div class="settings-actions">
-              ${shouldOfferTimerNotificationPermission() ? `<button class="secondary-action" type="button" id="settings-enable-timer-notifications">Erinnerungen erlauben</button>` : ""}
-              <button class="secondary-action" type="button" id="start-practice-timer-test">Testmodus: 10 Sekunden</button>
-            </div>
-          </section>
-
-          <section class="settings-block">
-            <h3>Mit Lehrkraft verbinden</h3>
+            <h3>Verbindung</h3>
             <p class="settings-copy">So startest du: App öffnen, dann entweder den QR-Code aus der Lehrkräfte-App scannen oder Lernenden-ID und Verbindungscode eingeben.</p>
             <article class="profile-sync-card tone-${escapeHtml(describeStudentSyncState().tone)}">
               <strong>${escapeHtml(describeStudentSyncState().title)}</strong>
@@ -4359,49 +4811,68 @@ function render() {
               <button class="secondary-action sync-action" type="button" id="student-sync-button" ${state.syncUploadToken ? "" : "disabled"}>Jetzt mit dem Server synchronisieren</button>
             </div>
             <p class="settings-copy">${state.syncStatusNote ? escapeHtml(state.syncStatusNote) : (state.syncUploadToken ? `Verbunden mit ${escapeHtml(state.syncSiteLabel || state.syncBaseUrl)}` : "Noch kein Unterricht verbunden.")}</p>
-            <p class="settings-copy">Ausnahmeweg nur für seltene Fälle: Profilpaket importieren.</p>
-            <div class="settings-actions">
-              <label class="secondary-action settings-file-label" for="profile-package-input">Profilpaket importieren</label>
-              <input id="profile-package-input" type="file" accept="application/json,.json" hidden />
-            </div>
           </section>
 
           <section class="settings-block">
-            <h3>Weiterempfehlen</h3>
-            <p class="settings-copy">Teile den Link zu ÜbeBiene direkt aus der App.</p>
+            <h3>Erinnerungen</h3>
+            <p class="settings-copy">Sperrbildschirm-Push braucht eine installierte PWA, erlaubte Mitteilungen und eine aktive Verbindung zum Sync-Server. Kurzer Ton und Vibration funktionieren nur lokal, wenn die App aktiv genug läuft.</p>
+            ${renderInstallStatusMessage()}
+            <p class="settings-status" data-state="${getTimerNotificationPermission() === "denied" ? "error" : "idle"}">${escapeHtml(getTimerNotificationHint())}</p>
+            <div class="timer-settings-list">
+              <label class="settings-toggle" for="timer-vibration-enabled">
+                <input id="timer-vibration-enabled" type="checkbox" ${state.timerVibrationEnabled ? "checked" : ""} />
+                <div>
+                  <strong>Vibration nutzen</strong>
+                  <span>Beim Timer-Ende kurz vibrieren, wenn das Gerät das unterstützt.</span>
+                </div>
+              </label>
+              <label class="settings-toggle" for="timer-tone-enabled">
+                <input id="timer-tone-enabled" type="checkbox" ${state.timerToneEnabled ? "checked" : ""} />
+                <div>
+                  <strong>Kurzen Ton nutzen</strong>
+                  <span>Wird beim Start des Timers vorbereitet und beim Ende abgespielt, wenn der Browser das zulässt.</span>
+                </div>
+              </label>
+            </div>
             <div class="settings-actions">
-              <button class="secondary-action" type="button" id="share-app-button">App empfehlen</button>
+              ${shouldOfferTimerNotificationPermission() ? `<button class="secondary-action" type="button" id="settings-enable-timer-notifications">Erinnerungen erlauben</button>` : ""}
+              ${renderPushTestButton()}
             </div>
-            <div class="share-card">
-              <div
-                id="app-share-qr-mount"
-                class="share-qr-image"
-                role="img"
-                aria-label="QR-Code zu ÜbeBiene"
-              ></div>
-              <div class="share-card-copy">
-                <p class="settings-copy">Oder mit dem Smartphone scannen:</p>
-                <code class="share-url">${formatShareUrlHtml(APP_SHARE_URL)}</code>
-              </div>
-            </div>
+            ${renderPushStatusMessage()}
           </section>
 
           <section class="settings-block">
-            <h3>Updates</h3>
+            <h3>Backup</h3>
+            <p class="settings-copy">Die Lernenden-App hält Übeverlauf, Lernenden-ID und deine Daten auf diesem Gerät lokal fest. Deshalb ist ein Backup hier wichtig. Backup speichert die Datei lokal. Für Gerätewechsel kann dieselbe Datei direkt über Teilen an das neue Gerät geschickt werden. Zusätzlich kann ein letzter Stand auf dem Server gespeichert werden.</p>
+            <div class="settings-actions">
+              <button class="secondary-action" type="button" id="move-device-button">Auf neues Gerät umziehen</button>
+              <button class="secondary-action" type="button" id="export-backup-button">Backup speichern</button>
+              <button class="secondary-action" type="button" id="save-backup-server-button" ${state.syncUploadToken ? "" : "disabled"}>Server-Backup speichern</button>
+              <button class="secondary-action" type="button" id="restore-backup-server-button" ${state.syncUploadToken ? "" : "disabled"}>Letztes Server-Backup wiederherstellen</button>
+              <label class="secondary-action settings-file-label" for="backup-input">Backup importieren</label>
+              <input id="backup-input" type="file" accept="application/json,.json" hidden />
+            </div>
+            <p class="settings-copy">${state.syncUploadToken ? `Server-Backup läuft über ${escapeHtml(state.syncSiteLabel || state.syncBaseUrl)} und ergänzt dein lokales Backup.` : "Für Server-Backups bitte zuerst das Lernenden-Profil mit dem Unterrichtsserver verbinden."}</p>
+          </section>
+
+          <section class="settings-block">
+            <h3>App</h3>
             <p class="settings-copy" id="version-label">Version ${escapeHtml(state.versionInfo.appVersion)} · Cache ${escapeHtml(state.versionInfo.cacheVersion)}</p>
             <p class="settings-copy">ÜbeBiene läuft auch offline weiter. Für eine Update-Prüfung braucht das Gerät nur kurz eine Internet-Verbindung.</p>
             <p class="settings-status" data-state="${state.updateState}">${escapeHtml(state.updateStatus)}</p>
             <div class="settings-actions">
+              ${renderInstallActionButton()}
               <button class="secondary-action" type="button" id="check-updates-button">Nach Updates suchen</button>
               <button class="secondary-action" type="button" id="reload-app-button">App neu laden</button>
             </div>
           </section>
 
           <section class="settings-block settings-block-danger">
-            <h3>Test-Reset</h3>
+            <h3>Test & Reset</h3>
             <p class="settings-copy">Für die Testphase kannst du alle lokalen Daten auf diesem Gerät löschen und danach neu mit Lernenden-ID und Verbindungscode starten.</p>
             <p class="settings-copy">Vorher am besten ein Backup speichern, wenn Einträge, Profile oder Verlauf noch gebraucht werden.</p>
             <div class="settings-actions settings-actions-close">
+              <button class="secondary-action" type="button" id="start-practice-timer-test">Testmodus: 10 Sekunden</button>
               <button class="secondary-action danger-action" type="button" id="open-reset-confirm">Alles löschen</button>
             </div>
           </section>
@@ -4445,6 +4916,26 @@ function render() {
             </div>
           </section>
 
+          <section class="settings-block">
+            <h3>Weiterempfehlen</h3>
+            <p class="settings-copy">Teile den Link zu ÜbeBiene direkt aus der App.</p>
+            <div class="settings-actions">
+              <button class="secondary-action" type="button" id="share-app-button">App empfehlen</button>
+            </div>
+            <div class="share-card">
+              <div
+                id="app-share-qr-mount"
+                class="share-qr-image"
+                role="img"
+                aria-label="QR-Code zu ÜbeBiene"
+              ></div>
+              <div class="share-card-copy">
+                <p class="settings-copy">Oder mit dem Smartphone scannen:</p>
+                <code class="share-url">${formatShareUrlHtml(APP_SHARE_URL)}</code>
+              </div>
+            </div>
+          </section>
+
           <div class="settings-actions settings-actions-close">
             <button class="secondary-action" type="button" id="close-help">Schließen</button>
           </div>
@@ -4481,10 +4972,8 @@ function render() {
           </form>
         </dialog>
 
-        ${
-          state.scannerOpen
-            ? `<div class="scanner-overlay" id="scanner-dialog" role="dialog" aria-modal="true" aria-labelledby="scanner-dialog-title">
-          <div class="settings-sheet scanner-sheet" tabindex="-1">
+        <dialog class="settings-dialog scanner-dialog" id="scanner-dialog" aria-labelledby="scanner-dialog-title">
+          <form method="dialog" class="settings-sheet scanner-sheet" tabindex="-1">
             <div class="section-head">
               <h2 id="scanner-dialog-title">QR-Code scannen</h2>
               <p>Scanne den Kopplungs-QR aus der Lehrkräfte-App oder wähle ein Bild mit QR-Code aus.</p>
@@ -4517,10 +5006,8 @@ function render() {
             <div class="settings-actions settings-actions-close">
               <button class="secondary-action" type="button" id="close-scanner">Schließen</button>
             </div>
-          </div>
-        </div>`
-            : ""
-        }
+          </form>
+        </dialog>
 
         <dialog class="settings-dialog" id="sync-status-dialog">
           <form method="dialog" class="settings-sheet" tabindex="-1">
@@ -4730,6 +5217,22 @@ function bindEvents() {
 
   const scannerDialog = document.querySelector("#scanner-dialog");
   if (scannerDialog) {
+    if (state.scannerOpen && !scannerDialog.open) {
+      try {
+        if (typeof scannerDialog.showModal === "function") {
+          scannerDialog.showModal();
+        } else {
+          scannerDialog.setAttribute("open", "");
+        }
+      } catch (error) {
+        scannerDialog.setAttribute("open", "");
+        logQrScannerDebug("scanner-dialog-show-error", {
+          name: error?.name || "",
+          message: error?.message || "",
+        });
+      }
+    }
+
     if (state.scannerOpen && qrScannerStream) {
       window.requestAnimationFrame(() => {
         void attachQrScannerStreamToVideo();
@@ -4738,6 +5241,12 @@ function bindEvents() {
 
     scannerDialog.addEventListener("click", (event) => {
       if (event.target === scannerDialog) {
+        closeScannerDialog();
+      }
+    });
+
+    scannerDialog.addEventListener("close", () => {
+      if (state.scannerOpen) {
         closeScannerDialog();
       }
     });
@@ -5477,6 +5986,21 @@ function bindEvents() {
     });
   }
 
+  const sendPushTestButton = document.querySelector("#send-push-test");
+  if (sendPushTestButton) {
+    sendPushTestButton.addEventListener("click", async () => {
+      try {
+        await sendPushTestNotification();
+        showCelebrationToast("Push-Test wurde gesendet.", { durationMs: 2200 });
+      } catch (error) {
+        state.pushSubscriptionStatus = "error";
+        state.pushStatusMessage = error?.message || "Push-Test konnte nicht gesendet werden.";
+        showCelebrationToast(state.pushStatusMessage, { durationMs: 2600 });
+      }
+      render();
+    });
+  }
+
   const pausePracticeTimerButton = document.querySelector("#pause-practice-timer");
   if (pausePracticeTimerButton) {
     pausePracticeTimerButton.addEventListener("click", () => {
@@ -5819,24 +6343,46 @@ function bindEvents() {
   }
 }
 
+/**
+ * Prüft die Installationsmöglichkeit und startet den Browser-Installationsprompt, falls verfügbar.
+ *
+ * @param {void} Keine Parameter.
+ * @returns {Promise<void>} Wird erfüllt, nachdem Status oder Prompt verarbeitet wurde.
+ */
 async function handleInstallPrompt() {
   if (!state.installPrompt) {
-    state.celebrationText = "Die Installation wird auf diesem Gerät gerade nicht angeboten.";
-    state.celebrate = true;
-    render();
-    window.setTimeout(() => {
-      state.celebrate = false;
-      render();
-    }, 2200);
+    if (isRunningStandalonePwa()) {
+      state.installStatusMessage = "ÜbeBiene läuft bereits als installierte App.";
+    } else if (isAppleMobileDevice()) {
+      state.installStatusMessage = "Auf dem iPhone bitte in Safari Teilen öffnen und Zum Home-Bildschirm wählen.";
+    } else {
+      state.installStatusMessage = "Die Installation wird auf diesem Gerät gerade nicht angeboten.";
+    }
+    showCelebrationToast(state.installStatusMessage, { durationMs: 2600 });
     return;
   }
 
   const prompt = state.installPrompt;
-  prompt.prompt();
+  state.installStatusMessage = "Installationsdialog wird geöffnet...";
+  render();
+
   try {
-    await prompt.userChoice;
+    prompt.prompt();
+  } catch (error) {
+    state.installStatusMessage = error?.message || "Der Installationsdialog konnte nicht geöffnet werden.";
+    showCelebrationToast(state.installStatusMessage, { durationMs: 2600 });
+    return;
+  }
+
+  try {
+    const choice = await prompt.userChoice;
+    if (choice?.outcome === "accepted") {
+      state.installStatusMessage = "Installation wurde gestartet.";
+    } else {
+      state.installStatusMessage = "Installation wurde nicht gestartet.";
+    }
   } catch {
-    // Ignore aborted install prompts.
+    state.installStatusMessage = "Installation wurde abgebrochen.";
   }
   state.installPrompt = null;
   state.installReady = false;
