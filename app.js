@@ -1,6 +1,6 @@
 const STORAGE_KEY = "uebebiene-state-v1";
 const APP_SHARE_URL = "https://marsrakete.github.io/uebebiene/";
-const DEFAULT_SYNC_BASE_URL = "https://schwoabamunzee.marsrakete.de/wp-json/uebebiene-sync/v1";
+const DEFAULT_SYNC_BASE_URL = "https://sarahhansenmusik.de/wp-json/uebebiene-sync/v1";
 const CURRENT_VERSION_INFO = Object.freeze(globalThis.APP_VERSION_INFO || {
   appVersion: "0.0.0",
   cacheVersion: "v0",

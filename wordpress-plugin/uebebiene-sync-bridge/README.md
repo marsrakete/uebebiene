@@ -1,6 +1,6 @@
 # ÜbeBiene Sync Bridge
 
-Aktuelle Plugin-Version: `0.27.12`
+Aktuelle Plugin-Version: `0.28.3`
 
 WordPress-Plugin für zentrale ÜbeBiene-Verwaltung mit:
 
@@ -12,8 +12,9 @@ WordPress-Plugin für zentrale ÜbeBiene-Verwaltung mit:
 - Kärtchenbibliothek
 - direkt verliehene Kärtchen mit Notiz
 - signierten Berichtspaketen
+- Web-Push-Erinnerungen für installierte Lernenden-PWAs
 
-Das Plugin ist auf den Server unter [https://schwoabamunzee.marsrakete.de/](https://schwoabamunzee.marsrakete.de/) zugeschnitten und arbeitet als zentrale Sync-Brücke zwischen Lernenden-App und Lehrkräfte-App.
+Das Plugin ist auf den Server unter [https://sarahhansenmusik.de/](https://sarahhansenmusik.de/) zugeschnitten und arbeitet als zentrale Sync-Brücke zwischen Lernenden-App und Lehrkräfte-App.
 
 In der Oberfläche sprechen wir bewusst von `Unterrichten`, weil das für den Alltag verständlicher ist. Technisch dürfen diese Datensätze intern weiterhin `Profile` heißen.
 
@@ -41,7 +42,43 @@ Berichte von Lernenden bleiben zusätzlich dedupliziert über `report_uuid` und 
 5. Danach Lehrkräfte, Klassen, Lernende, Unterrichte und Zuordnungen anlegen.
 6. Für jede Lehrkraft den `API-Key` in der Lehrkräfte-App hinterlegen.
 7. Für jeden Unterricht Lernenden-ID und Verbindungscode in der Lehrkräfte-App anzeigen oder teilen.
-8. Unter `Einstellungen` bei Bedarf ein komplettes Plugin-Backup exportieren oder auf einem anderen Server wieder importieren.
+8. Unter `Push` die Dispatch-URL für den Web-Cronjob prüfen.
+9. Unter `Einstellungen` bei Bedarf ein komplettes Plugin-Backup exportieren oder auf einem anderen Server wieder importieren.
+
+## Web-Cronjob für Push-Erinnerungen
+
+Für Sperrbildschirm-Erinnerungen braucht die Lernenden-App einen serverseitigen Dispatch. Der Timer wird beim Start in der Datenbank als Push-Erinnerung geplant. Der externe Web-Cronjob ruft regelmäßig den Dispatch-Endpunkt auf; das Sync-Plugin versendet dann alle fälligen Pushes an aktive Geräte.
+
+Der notwendige Web-Cronjob ist bei [cron-job.org](https://cron-job.org/) kostenfrei angelegt.
+
+Konfiguration bei cron-job.org:
+
+- Job-Typ: `URL-Aufruf`
+- Methode: `GET`
+- Intervall: `jede Minute`
+- Ziel-URL: im WordPress-Admin unter `ÜbeBiene Sync -> Push -> Push-Erinnerungen -> Dispatch-URL für Cron`
+- Erwartete Antwort: HTTP `200` mit JSON, zum Beispiel `ok: true`, `reminderCount`, `sentCount`, `failedCount`
+
+Die Dispatch-URL enthält den geheimen Parameter `key`. Diese URL ist ein Betriebsgeheimnis und darf nicht öffentlich dokumentiert, in Screenshots gezeigt oder in Git eingecheckt werden.
+
+Der Dispatch-Endpunkt:
+
+- verarbeitet nur bereits geplante fällige Push-Erinnerungen
+- erzeugt keine Übeeinträge
+- liest keine Lernendendaten aus
+- versendet ohne gültigen Key nichts
+- liefert Zähler zurück, damit cron-job.org den Lauf protokollieren kann
+
+Kontrolle im WordPress-Admin:
+
+- `ÜbeBiene Sync -> Push -> Push-Erinnerungen` zeigt Dispatch-URL und VAPID Public Key.
+- `ÜbeBiene Sync -> Push -> Push-Status` zeigt bekannte Push-Geräte, offene Timer, fällige offene Timer, versendete Timer, Fehler und Abbrüche.
+
+Aufräumung:
+
+- erledigte Push-Timer mit Status `sent`, `failed` oder `canceled` werden beim Dispatch nach 14 Tagen gelöscht
+- offene `pending`-Timer bleiben erhalten, auch wenn sie überfällig sind
+- überfällige offene Timer sind ein Diagnosehinweis darauf, dass der Cronjob nicht läuft oder den Server nicht erreicht
 
 ## Backup und Serverwechsel
 
@@ -128,10 +165,24 @@ Neu im Admin-Überblick:
   `/wp-json/uebebiene-sync/v1/teacher-card-awards`
 - Öffentlicher Profilpaket-Link:
   `/wp-json/uebebiene-sync/v1/profile-package`
+- Push-Konfiguration für Lernenden-App:
+  `/wp-json/uebebiene-sync/v1/push/config`
+- Push-Subscription speichern:
+  `/wp-json/uebebiene-sync/v1/push/subscribe`
+- Push-Subscription entfernen:
+  `/wp-json/uebebiene-sync/v1/push/unsubscribe`
+- Push-Test:
+  `/wp-json/uebebiene-sync/v1/push/test`
+- Timer-Push planen:
+  `/wp-json/uebebiene-sync/v1/push/timer/schedule`
+- Timer-Push abbrechen:
+  `/wp-json/uebebiene-sync/v1/push/timer/cancel`
+- Fällige Pushes per Web-Cronjob versenden:
+  `/wp-json/uebebiene-sync/v1/push/dispatch?key=...`
 
 Komplette Basis-URL für beide Apps:
 
-- `https://schwoabamunzee.marsrakete.de/wp-json/uebebiene-sync/v1`
+- `https://sarahhansenmusik.de/wp-json/uebebiene-sync/v1`
 
 ## Header
 
@@ -155,8 +206,14 @@ Das Plugin legt eigene WordPress-Tabellen an für:
 - Kärtchen
 - direkt verliehene Kärtchen
 - Berichte
+- Push-Subscriptions
+- Push-Erinnerungen
 
 Berichte werden nicht als Datei in die Mediathek gelegt, sondern als geprüfte JSON-Datensätze in der Datenbank gespeichert.
+
+## Drittkomponenten
+
+Dieses Plugin liefert `QRCode.js` lokal mit. Die Hinweise zu Herkunft und Lizenz stehen in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
 
 ## Deduplizierung
 

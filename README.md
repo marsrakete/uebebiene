@@ -235,6 +235,7 @@ Zur Erinnerung gilt:
 - auf unterstützten Geräten kann der Timer zusätzlich vibrieren
 - ein kurzer Ton ist optional und nur dort sinnvoll, wo der Browser ihn zulässt
 - auf iPhone oder iPad ist für Sperrschirm-Erinnerungen die Nutzung als Home-Bildschirm-App wichtig
+- Sperrbildschirm-Push läuft serverseitig über das Sync-Plugin und braucht den eingerichteten Web-Cronjob
 
 ## Was die Lehrkräfte-App im Alltag tut
 
@@ -369,6 +370,26 @@ npm run package:plugins:plain
 
 `npm run package:plugins:plain` erzeugt zusätzlich ZIP-Dateien ohne Zeitstempel, zum Beispiel `uebebiene-learner-app.zip`. Plugin-ZIPs sind lokale Auslieferungsartefakte und werden nicht eingecheckt.
 
+### Web-Cronjob für Push-Erinnerungen
+
+Für Sperrbildschirm-Pushes reicht WordPress allein nicht zuverlässig aus, weil fällige Timer auch dann versendet werden müssen, wenn gerade niemand die Seite öffnet. Deshalb gibt es im Sync-Plugin einen extern aufgerufenen Dispatch-Endpunkt.
+
+Der notwendige Web-Cronjob ist bei [cron-job.org](https://cron-job.org/) kostenfrei angelegt.
+
+Konfiguration:
+
+- Typ: `URL-Aufruf`
+- Methode: `GET`
+- Intervall: `jede Minute`
+- Ziel-URL: im WordPress-Admin unter `ÜbeBiene Sync -> Push -> Push-Erinnerungen -> Dispatch-URL für Cron`
+- Erwartung: HTTP `200` und eine JSON-Antwort mit `ok: true`
+
+Die Dispatch-URL enthält einen geheimen Key. Sie darf nicht öffentlich dokumentiert, in Screenshots geteilt oder in Git eingecheckt werden.
+
+Der Cronjob verarbeitet fällige Push-Timer aus der Datenbank. Er erzeugt selbst keine Übeeinträge, liest keine Lernendendaten aus und kann ohne gültigen Key keine Pushes auslösen.
+
+Zur Kontrolle dient im WordPress-Admin der Tab `ÜbeBiene Sync -> Push`. Dort sieht man aktive Push-Geräte, offene Timer, versendete Timer, Fehler und fällige offene Erinnerungen.
+
 ### QR-Erkennung in der Lernenden-App
 
 Für die Kopplung per QR-Code nutzt ÜbeBiene in der Lernenden-App zwei Wege:
@@ -391,6 +412,18 @@ Wichtig ist nur:
 - die Lizenz- und Copyright-Hinweise von `jsQR` müssen erhalten bleiben
 - bei einer Weitergabe des Produkts sollte die verwendete Drittbibliothek sauber dokumentiert sein
 - die Apache-2.0-Lizenz ist keine Copyleft-Lizenz
+
+### Drittkomponenten und externe Dienste
+
+Die Drittkomponenten sind zentral in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md) dokumentiert.
+
+Aktuell relevant:
+
+- `jsQR` für QR-Erkennung in der Lernenden-App
+- `QRCode.js` für lokale QR-Code-Erzeugung in Apps und WordPress-Adminbereichen
+- `goQR.me QR Code API` nur im alten `fleisstakt-sync-bridge`-Plugin als externer QR-Bilddienst
+
+Die aktuellen ÜbeBiene-Apps und ÜbeBiene-Plugins laden keine QR-Bibliotheken von einem CDN, sondern liefern die benötigten Vendor-Dateien lokal aus.
 
 ### Technische Sicht
 

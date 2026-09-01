@@ -1,6 +1,6 @@
 # ÜbeBiene Learner App
 
-Aktuelle Plugin-Version: `0.1.1`
+Aktuelle Plugin-Version: `0.1.22`
 
 Dieses WordPress-Plugin liefert die ÜbeBiene Lernenden-App direkt unter einer festen WordPress-Route als eigene PWA aus.
 
@@ -53,4 +53,8 @@ Diese Routen sollten in Cache- oder Optimierungsplugins ausgeschlossen werden:
 - `/uebebiene/app.js`
 - `/uebebiene/styles.css`
 - `/uebebiene/version.js`
+
+## Drittkomponenten
+
+Dieses Plugin liefert QR-Bibliotheken lokal mit. Die Hinweise zu Herkunft und Lizenz stehen in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
 

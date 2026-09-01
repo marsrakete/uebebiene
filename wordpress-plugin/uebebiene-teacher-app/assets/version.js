@@ -1,6 +1,6 @@
 globalThis.APP_VERSION_INFO = Object.freeze({
-  appVersion: "0.10.22",
-  cacheVersion: "v164",
+  appVersion: "0.10.23",
+  cacheVersion: "v165",
   label: "ÜbeBiene",
 });
 

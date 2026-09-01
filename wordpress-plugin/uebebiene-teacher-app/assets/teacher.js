@@ -1,6 +1,6 @@
 const TEACHER_STORAGE_KEY = "uebebiene-teacher-state-v1";
 const APP_SHARE_URL = "https://marsrakete.github.io/uebebiene/";
-const DEFAULT_SYNC_BASE_URL = "https://schwoabamunzee.marsrakete.de/wp-json/uebebiene-sync/v1";
+const DEFAULT_SYNC_BASE_URL = "https://sarahhansenmusik.de/wp-json/uebebiene-sync/v1";
 const STATUS_LINE_TTL_MS = 5 * 60 * 1000;
 const TEACHER_TOAST_TTL_MS = 30 * 1000;
 const CARD_AWARD_NOTE_MAX_LENGTH = 140;

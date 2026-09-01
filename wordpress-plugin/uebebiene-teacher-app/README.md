@@ -1,8 +1,12 @@
 # ÜbeBiene Teacher App
 
-Aktuelle Plugin-Version: `0.1.12`
+Aktuelle Plugin-Version: `0.1.29`
 
 Dieses WordPress-Plugin liefert die ÜbeBiene Lehrkräfte-App direkt unter einer festen WordPress-Route als eigene PWA aus.
+
+## Drittkomponenten
+
+Dieses Plugin liefert `QRCode.js` lokal mit. Die Hinweise zu Herkunft und Lizenz stehen in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
 
 ## Ziel
 

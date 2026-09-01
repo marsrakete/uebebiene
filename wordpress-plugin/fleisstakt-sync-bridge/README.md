@@ -1,6 +1,6 @@
 # FleißTakt Sync Bridge
 
-Aktuelle Plugin-Version: `0.25.9`
+Aktuelle Plugin-Version: `0.26.7`
 
 WordPress-Plugin für zentrale FleißTakt-Verwaltung mit:
 
@@ -13,7 +13,7 @@ WordPress-Plugin für zentrale FleißTakt-Verwaltung mit:
 - direkt verliehene Kärtchen mit Notiz
 - signierten Berichtspaketen
 
-Das Plugin ist auf den Server unter [https://schwoabamunzee.marsrakete.de/](https://schwoabamunzee.marsrakete.de/) zugeschnitten und arbeitet als zentrale Sync-Brücke zwischen Lernenden-App und Lehrkräfte-App.
+Das Plugin ist auf den Server unter [https://sarahhansenmusik.de/](https://sarahhansenmusik.de/) zugeschnitten und arbeitet als zentrale Sync-Brücke zwischen Lernenden-App und Lehrkräfte-App.
 
 In der Oberfläche sprechen wir bewusst von `Unterrichten`, weil das für den Alltag verständlicher ist. Technisch dürfen diese Datensätze intern weiterhin `Profile` heißen.
 
@@ -42,6 +42,10 @@ Berichte von Lernenden bleiben zusätzlich dedupliziert über `report_uuid` und 
 6. Für jede Lehrkraft den `API-Key` in der Lehrkräfte-App hinterlegen.
 7. Für jeden Unterricht Lernenden-ID und Verbindungscode in der Lehrkräfte-App anzeigen oder teilen.
 8. Unter `Einstellungen` bei Bedarf ein komplettes Plugin-Backup exportieren oder auf einem anderen Server wieder importieren.
+
+## Drittkomponenten und externe Dienste
+
+Dieses Alt-Plugin nutzt die `goQR.me QR Code API` als externen QR-Bilddienst. Die Hinweise dazu stehen in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
 
 ## Backup und Serverwechsel
 
@@ -131,7 +135,7 @@ Neu im Admin-Überblick:
 
 Komplette Basis-URL für beide Apps:
 
-- `https://schwoabamunzee.marsrakete.de/wp-json/fleisstakt-sync/v1`
+- `https://sarahhansenmusik.de/wp-json/fleisstakt-sync/v1`
 
 ## Header
 
